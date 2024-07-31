@@ -1,0 +1,40 @@
+[package]
+name = "agent-ebpf"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+aya-ebpf = { git = "https://github.com/aya-rs/aya" }
+aya-log-ebpf = { git = "https://github.com/aya-rs/aya" }
+agent-common = { path = "../agent-common" }
+
+[[bin]]
+name = "agent"
+path = "src/main.rs"
+
+[profile.dev]
+opt-level = 3
+debug = false
+debug-assertions = false
+overflow-checks = false
+lto = true
+panic = "abort"
+incremental = false
+codegen-units = 1
+rpath = false
+
+[profile.release]
+opt-level = "z"          # Optimize for size.
+lto = true               # Enable Link Time Optimization
+codegen-units = 1        # Reduce number of codegen units to increase optimizations.
+panic = "abort"          # Abort on panic
+debug = false            # Strip debug symbols from the binary.
+rpath = false            # Do not embed the path to the dynamic library in the binary.
+debug-assertions = false # Remove assertions from the binary.
+incremental = false      # Disable incremental compilation.
+overflow-checks = false  # Disable overflow checks.
+strip = true             # Automatically strip symbols from the binary.
+
+[workspace]
+members = []
+
