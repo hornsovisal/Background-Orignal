@@ -59,7 +59,9 @@ impl Stream for WsStream {
                 if let Ok(msg) = msg.to_text() {
                     let event = match serde_json::from_str(msg) {
                         Ok(events) => events,
-                        Err(_e) => Events::Other(msg.to_string()),
+                        Err(_e) => {
+                            // panic!("{_e}");
+                            Events::Other(msg.to_string())},
                     };
                     Poll::Ready(Some(Ok(event)))
                 } else {

@@ -1,7 +1,14 @@
-use forensic_adb::{Device as FaDevice, DeviceError, Host, UnixPath};
+use dashmap::DashMap;
+use forensic_adb::{Device as FaDevice, DeviceError, Host};
 use quick_xml::events::BytesStart;
-use std::{collections::HashSet, net::Ipv4Addr, str::FromStr, time::Duration};
-use tokio::{fs, process::Command, time::timeout};
+use std::{
+    collections::{HashMap, HashSet},
+    net::Ipv4Addr,
+    str::FromStr,
+    sync::Arc,
+    time::Duration,
+};
+use tokio::{fs, process::Command, sync::watch, time::timeout};
 
 use crate::{action_db::ActionDb, error::Error};
 
@@ -51,35 +58,38 @@ pub struct Device {
     pub ipv4: Option<Ipv4Addr>,
     pub serial: String,
     pub action_db: ActionDb,
+    pub last_deferred_broadcast: Arc<watch::Receiver<String>>,
+    pub requested_broadcasts: Arc<DashMap<String, HashMap<String, HashSet<String>>>>,
 }
 
 impl Device {
     pub async fn execute(&self, command: &str) -> Result<String, Error> {
-        let mut r#try = 0;
-        loop {
-            match self.d.execute_host_shell_command(command).await {
-                Ok(res) => {
-                    // println!("{} -> {}", command, &res);
+        self.execute_with_timeout(command, 20).await
+        // let mut r#try = 0;
+        // loop {
+        //     match self.d.execute_host_shell_command(command).await {
+        //         Ok(res) => {
+        //             println!("{} -> {}", command, &res);
 
-                    return Ok(res);
-                }
-                Err(DeviceError::Adb(e)) => {
-                    if e.starts_with("adb error: device") && e.ends_with("not found") {
-                        println!("Device lost/not found");
-                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                        r#try += 1;
-                        if r#try == 3 {
-                            return Err(Error::AdbError(e));
-                        }
-                    } else {
-                        return Err(Error::AdbError(e));
-                    }
-                }
-                Err(e) => {
-                    return Err(e)?;
-                }
-            }
-        }
+        //             return Ok(res);
+        //         }
+        //         Err(DeviceError::Adb(e)) => {
+        //             if e.starts_with("adb error: device") && e.ends_with("not found") {
+        //                 println!("Device lost/not found");
+        //                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        //                 r#try += 1;
+        //                 if r#try == 3 {
+        //                     return Err(Error::AdbError(e));
+        //                 }
+        //             } else {
+        //                 return Err(Error::AdbError(e));
+        //             }
+        //         }
+        //         Err(e) => {
+        //             return Err(e)?;
+        //         }
+        //     }
+        // }
         // let res = self.d.execute_host_shell_command(command).await.unwrap();
         // println!("{} -> {}", command, &res);
         // Ok(res)
@@ -94,37 +104,84 @@ impl Device {
         //     .await?;
         // Ok(String::from_utf8(child.stdout).unwrap())
     }
+    pub async fn execute_with_timeout_nth(
+        &self,
+        command: &str,
+        sec: u64,
+        n: u8,
+    ) -> Result<String, Error> {
+        for _ in 0..n {
+            match self.execute_with_timeout(command, sec).await {
+                Ok(res) => return Ok(res),
+                Err(e) => {
+                    println!("Error: {}", e);
+                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                }
+            }
+        }
+        Ok(String::new())
+    }
+
     pub async fn execute_with_timeout(&self, command: &str, sec: u64) -> Result<String, Error> {
+        let mut freez_try = 0;
         let mut r#try = 0;
+        // let random = rand::random::<u64>();
+
         loop {
-            dbg!(command);
-            match timeout(
+            // println!(">{}:{}:{}", command, random,sec);
+            let exec = timeout(
                 Duration::from_secs(sec),
                 self.d.execute_host_shell_command(command),
             )
-            .await
-            {
+            .await;
+
+            // println!("<{}:{}:{}", command, random,sec);
+            match exec {
                 Ok(Ok(res)) => {
-                    println!("{} -> {}", command, &res);
+                    // println!("<{}:{}:{} -> {}", command, random,sec,res);
+                    if res.starts_with("cmd: Can't find service")
+                        || res.starts_with("cmd: Failure calling service")
+                    {
+                        freez_try += 1;
+                        dbg!("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+                        dbg!("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+                        dbg!("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+                        dbg!("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+                        if freez_try >= 5 {
+                            dbg!("ISSSUEEE");
+                            std::process::exit(0);
+                        }
+                        tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+                        continue;
+                    } else if res.starts_with("error: device") && res.ends_with("not found") {
+                        // println!("Device lost/not found:{}",random);
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                        r#try += 1;
+                        if r#try == 3 {
+                            return Err(Error::AdbError(res));
+                        }
+                        continue;
+                    }
 
                     return Ok(res);
                 }
                 Ok(Err(DeviceError::Adb(e))) => {
-                    if e.starts_with("adb error: device") && e.ends_with("not found") {
-                        println!("Device lost/not found");
-                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                        r#try += 1;
-                        if r#try == 3 {
-                            return Err(Error::AdbError(e));
-                        }
+                    if e.starts_with("adb error: device")
+                        && (e.ends_with("offline") | e.ends_with("not found"))
+                    {
+                        println!("Device offline");
+                        std::process::exit(0);
+                        tokio::time::sleep(std::time::Duration::from_secs(30)).await;
                     } else {
                         return Err(Error::AdbError(e));
                     }
                 }
                 Ok(Err(e)) => {
+                    // println!("{}:{} -> {}", command,random, &e);
                     return Err(e)?;
                 }
                 Err(e) => {
+                    // println!("{}:{} -> {}", command,random, &e);
                     r#try += 1;
                     if r#try == 2 {
                         return Err(Error::AdbError(e.to_string()));
@@ -159,23 +216,53 @@ impl Device {
             self.execute(&format!("su -c \"{}\"", command)).await
         }
     }
+    pub async fn execute_with_timeout_nth_as_root(
+        &self,
+        command: &str,
+        timeout: impl Into<Option<u64>>,
+        n: u8,
+    ) -> Result<String, Error> {
+        if let Some(sec) = timeout.into() {
+            self.execute_with_timeout_nth(&format!("su -c \"{}\"", command), sec, n)
+                .await
+        } else {
+            self.execute(&format!("su -c \"{}\"", command)).await
+        }
+    }
     pub async fn new(d: FaDevice, action_db: ActionDb) -> Self {
+        let (watch_sender, watch_receiver) = watch::channel(String::new());
         let serial = d.serial.clone();
         let mut device = Self {
-            serial,
             d,
+            serial,
             ipv4: None,
             action_db,
+            last_deferred_broadcast: Arc::new(watch_receiver),
+            requested_broadcasts: Default::default(),
         };
         let ip = device
-            .execute("ifconfig wlan0 | grep Bcast | cut -d : -f 2 | cut -d ' ' -f 1")
+            .execute("ifconfig wlan0 | grep Bcast | cut -d : -f 2 | cut -d \" \" -f 1")
             .await
             .ok()
             .as_ref()
             .map(|s| strip_trailing_newline(s))
             .and_then(|ip| Ipv4Addr::from_str(ip).ok());
         device.ipv4 = ip;
-
+        let d = device.clone();
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                if let Ok(res) = d
+                    .execute_with_timeout(
+                        "dumpsys activity broadcasts | grep \"Deferred Ordered\" -A 3",
+                        10,
+                    )
+                    .await
+                {
+                    watch_sender.send(res).unwrap();
+                }
+            }
+        });
         device
     }
     pub fn get_apk_info(manifest_path: &str) -> Result<AppInfo, Error> {
@@ -324,66 +411,91 @@ impl Device {
             uid: None,
         })
     }
-    pub async fn pull(&self, path: &str, dest: &mut tokio::fs::File) -> Result<(), Error> {
-        self.d.pull(UnixPath::new(path), dest).await?;
-        Ok(())
-    }
+    // pub async fn pull(&self, path: &str, dest: &mut tokio::fs::File) -> Result<(), Error> {
+    //     // self.d.pull(UnixPath::new(path), dest).await?; todo
+    //     Ok(())
+    // }
+
     pub async fn install_apk(&self, apk_folder: &str) -> Result<AppInfo, Error> {
+        // dbg!(1);
         let manifest_path = format!("{}/{}", apk_folder, "AndroidManifest.xml");
         let mut app_info = Self::get_apk_info(&manifest_path)?;
         let mut dir_content = fs::read_dir(apk_folder).await.unwrap();
-        let mut base = "pm install -g /data/local/tmp/install/base.apk".to_string();
+        let mut args = vec![
+            "-s".to_string(),
+            self.serial.clone(),
+            "install-multiple".to_string(),
+            "-g".to_string(),
+            format!("{}/base.apk", apk_folder),
+        ];
+
         loop {
+            // dbg!("loop");
             let entry = dir_content.next_entry().await.unwrap();
             if entry.is_none() {
                 break;
             }
             let entry = entry.unwrap();
             let path = entry.path();
-            if path.extension().is_some_and(|e| e == "apk") {
-                let mut f = fs::File::open(&path).await.unwrap();
-                let mut r#try = 0;
-                loop {
-                    if self
-                        .d
-                        .push(
-                            &mut f,
-                            UnixPath::new(&format!(
-                                "/data/local/tmp/install/{}",
-                                path.file_name().unwrap().to_str().unwrap()
-                            )),
-                            777,
-                        )
-                        .await
-                        .is_ok()
-                    {
-                        if path.file_name().unwrap() != "base.apk" {
-                            base.push_str(&format!(
-                                " /data/local/tmp/install/{}",
-                                path.file_name().unwrap().to_str().unwrap()
-                            ));
-                        }
-
-                        break;
-                    }
-                    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                    r#try += 1;
-                    if r#try == 3 {
-                        return Err(Error::AdbError("Error pushing APK".to_string()));
-                    }
+            if path.extension().is_some_and(|e| e == "apk")
+                && path.file_name().unwrap() != "base.apk"
+            {
+                if path.file_name().unwrap() != "base.apk" {
+                    args.push(format!(
+                        "{}/{}",
+                        apk_folder,
+                        path.file_name().unwrap().to_str().unwrap()
+                    ));
                 }
             }
         }
-        base.push_str("; rm -rf /data/local/tmp/install/");
-        if self.execute(&base).await?.starts_with("Success") {
-            let x = self.get_package_uid(&app_info.package_name).await.unwrap();
-            app_info.uid.replace(x);
-            Ok(app_info)
-        } else {
-            return Err(Error::AdbError(format!(
-                "Error installing APKs {}",
-                apk_folder
-            )));
+        let mut r#try = 0;
+        loop {
+            match timeout(
+                Duration::from_secs(240),
+                Command::new("adb").args(args.clone()).output(),
+            )
+            .await
+            {
+                Ok(Ok(res)) => {
+                    if res.stdout.starts_with(b"Success") {
+                        // dbg!(7.1);
+                        let x = self.get_package_uid(&app_info.package_name).await.unwrap();
+                        app_info.uid.replace(x);
+                        // dbg!(8);
+                        return Ok(app_info);
+                    } else if res.stdout.starts_with(b"cmd: Can't find") {
+                        tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+                        if r#try > 5 {
+                            return Err(Error::AdbError(
+                                "Timeout installing APKs: cmd: Can't find".to_string(),
+                            ));
+                        }
+                        r#try += 1;
+                        continue;
+                    } else {
+                        // dbg!(9);
+                        return Err(Error::AdbError(format!(
+                            "Error installing APKs {} : {}",
+                            apk_folder,
+                            String::from_utf8_lossy(res.stderr.as_slice())
+                        )));
+                    };
+                }
+                Ok(Err(e)) => {
+                    return Err(Error::AdbError(format!(
+                        "Error installing APKs {} : {}",
+                        apk_folder, e
+                    )));
+                }
+                Err(_) => {
+                    tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+                    if r#try > 5 {
+                        return Err(Error::AdbError("Timeout installing APKs".to_string()));
+                    }
+                    r#try += 1;
+                }
+            }
         }
 
         // let mut args = Vec::new();
@@ -433,7 +545,7 @@ impl Device {
         // }
     }
     pub async fn uninstall(&self, package_name: &str) -> Result<(), Error> {
-        self.execute_with_timeout(&format!("pm clear {0};pm uninstall {0}", package_name), 10)
+        self.execute_with_timeout(&format!("pm clear {0};pm uninstall {0}", package_name), 30)
             .await?;
         Ok(())
     }
@@ -518,52 +630,152 @@ impl Device {
         }
         Ok(())
     }
-    pub async fn send_actions(&self, app_info: &AppInfo) -> Result<(), Error> {
-        // adb shell am broadcast -p p -a com.whereismywifeserver.intent.TEST --es sms_body "test from adb"
-        // adb shell am start-foreground-service com.larini.sunriseapp/.NewService
-        // adb shell am startservice com.larini.sunriseapp/.NewService
-        let mut actions = app_info
-            .services
-            .iter()
-            .flat_map(|s| s.actions.iter())
-            .collect::<Vec<_>>();
-        actions.extend(app_info.receivers.iter().flat_map(|r| r.actions.iter()));
-        let commands = actions
-            .iter()
-            .map(|a| format!("am broadcast -p {} -a {}", app_info.package_name, a))
-            .collect::<Vec<String>>()
-            .join(";");
-        println!("{:?}", commands);
-        println!("{}", self.execute_as_root(&commands, 10).await?);
+    // pub async fn send_actions(&self, app_info: &AppInfo) -> Result<(), Error> {
+    //     // adb shell am broadcast -p p -a com.whereismywifeserver.intent.TEST --es sms_body "test from adb"
+    //     // adb shell am start-foreground-service com.larini.sunriseapp/.NewService
+    //     // adb shell am startservice com.larini.sunriseapp/.NewService
+    //     let mut actions = app_info
+    //         .services
+    //         .iter()
+    //         .flat_map(|s| s.actions.iter())
+    //         .collect::<Vec<_>>();
+    //     actions.extend(app_info.receivers.iter().flat_map(|r| r.actions.iter()));
+    //     let commands = actions
+    //         .iter()
+    //         .map(|a| format!("am broadcast -p {} -a {}", app_info.package_name, a))
+    //         .collect::<Vec<String>>()
+    //         .join(";");
+    //     println!("{:?}", commands);
+    //     println!("{}", self.execute_as_root(&commands, 10).await?);
+    //     Ok(())
+    // }
+    pub async fn wait_for_deferred_broadcast(
+        last_deferred_broadcast: Arc<watch::Receiver<String>>,
+        pkg_name: &str,
+    ) {
+        loop {
+            if last_deferred_broadcast.borrow().clone().contains("pkg=") {
+                println!("There is still deferred action");
+                // println!("{} is still has deferred action", pkg_name);
+                tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
+            } else {
+                break;
+            }
+        }
+    }
+    pub async fn send_action(
+        &self,
+        pkg_name: &str,
+        action: &str,
+        component_name: &str,
+    ) -> Result<(), Error> {
+        let last_deferred_broadcast = self.last_deferred_broadcast.clone();
+
+        // tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        let mut cmd = "am broadcast --async --receiver-include-background --receiver-no-abort --receiver-foreground  --activity-multiple-task --include-stopped-packages --grant-read-uri-permission --allow-background-activity-starts".to_string();
+        if !action.is_empty() {
+            cmd.push_str(&format!(" -a {}", action));
+        }
+        let component = if component_name.is_empty() {
+            String::new()
+        } else {
+            format!("{}/{}", pkg_name, component_name)
+        };
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        Self::wait_for_deferred_broadcast(last_deferred_broadcast.clone(), pkg_name).await;
+        self.execute_with_timeout_nth_as_root(&format!("{} {}", cmd, pkg_name), 20, 5)
+            .await?;
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        Self::wait_for_deferred_broadcast(last_deferred_broadcast.clone(), pkg_name).await;
+        self.execute_with_timeout_nth_as_root(
+            &format!("{} {} {}", cmd, pkg_name, component),
+            20,
+            5,
+        )
+        .await?;
+
+        if let Ok(Some(arg)) = self.action_db.get_action_arg(action.into()) {
+            // dbg!(action,&arg);
+            let (data, extras) = arg;
+
+            let mut parameters = String::new();
+            if data.len() > 0 {
+                parameters.push_str(&format!(" -d {} ", data));
+            }
+            for (k, v) in extras {
+                if v.is_empty() {
+                    continue;
+                }
+                parameters.push_str(&format!(" --es {} '{}'", k, v));
+            }
+            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            Self::wait_for_deferred_broadcast(last_deferred_broadcast.clone(), pkg_name).await;
+            self.execute_with_timeout_nth_as_root(
+                &format!("{} {} {}", cmd, parameters, pkg_name),
+                20,
+                5,
+            )
+            .await?;
+            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            Self::wait_for_deferred_broadcast(last_deferred_broadcast.clone(), pkg_name).await;
+            self.execute_with_timeout_nth_as_root(
+                &format!("{} {} {} {}", cmd, parameters, pkg_name, component),
+                20,
+                5,
+            )
+            .await?;
+        }
+
         Ok(())
     }
-    pub async fn send_action(&self, pkg_name: &str, action: &str) -> Result<(), Error> {
-        self.execute_as_root(&format!("am broadcast -p {} -a {}", pkg_name, action), 30)
-            .await?;
-        if let Ok(args) = self.action_db.get_action_args(action.into()) {
-            for arg in args {
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    pub async fn start_services(&self, app_info: &AppInfo) -> Result<(), Error> {
+        // let mut commands = Vec::new();
+        for service in app_info.services.iter() {
+            //.filter(|s| s.exported)
+            let base_command = "am start-foreground-service";
+            let component = format!("{}/{}", app_info.package_name, service.name);
+            for action in &service.actions {
+                if let Ok(Some(arg)) = self.action_db.get_action_arg(action.into()) {
+                    // dbg!(action,&arg);
+                    let (data, extras) = arg;
+
+                    let mut parameters = String::new();
+                    if data.len() > 0 {
+                        parameters.push_str(&format!(" -d {} ", data));
+                    }
+                    for (k, v) in extras {
+                        if v.is_empty() {
+                            continue;
+                        }
+                        parameters.push_str(&format!(" --es {} '{}'", k, v));
+                    }
+                    self.execute_as_root(
+                        &format!(
+                            "{} -a {} --receiver-include-background --receiver-no-abort --receiver-foreground  --activity-multiple-task --include-stopped-packages --grant-read-uri-permission {} {}",
+                            base_command, action, parameters, component
+                        ),
+                        30,
+                    )
+                    .await?;
+                }
+            }
+            
+            if service.actions.is_empty() {
                 self.execute_as_root(
-                    &format!("am broadcast -p {} -a {} -d {}", pkg_name, action, arg),
+                    &format!("{} {}", base_command, component),
                     30,
                 )
                 .await?;
             }
+            // commands.push(format!(
+            //     "am start-foreground-service -n {}/{}",
+            //     app_info.package_name, service.name
+            // ));
         }
+        // self.execute_as_root(&commands.join(";"), 30).await?;
         Ok(())
     }
-    pub async fn start_services(&self, app_info: &AppInfo) -> Result<(), Error> {
-        let mut commands = Vec::new();
-        for service in app_info.services.iter().filter(|s| s.exported) {
-            commands.push(format!(
-                "am start-foreground-service -n {}/{}",
-                app_info.package_name, service.name
-            ));
-        }
-        self.execute_with_timeout(&commands.join(";"), 30).await?;
-        Ok(())
-    }
-    async fn get_package_uid(&self, package_name: &str) -> Result<u32, Error> {
+    async fn get_package_uid(&self, package_name: &str) -> Result<i64, Error> {
         let output = self
             .execute(&format!("pm list packages -U {}", package_name))
             .await?;
@@ -574,7 +786,7 @@ impl Device {
             .split(':')
             .nth(2)
             .unwrap()
-            .parse::<u32>()
+            .parse::<i64>()
             .unwrap();
         Ok(uid)
     }
@@ -606,7 +818,7 @@ impl Device {
 
 #[derive(Debug, Eq, Hash, PartialEq, Clone)]
 pub struct Service {
-    name: String,
+    pub name: String,
     permission: Option<String>,
     exported: bool,
     pub actions: Vec<String>,
@@ -614,7 +826,7 @@ pub struct Service {
 }
 #[derive(Debug, Eq, Hash, PartialEq, Clone)]
 pub struct Receiver {
-    name: String,
+    pub name: String,
     permission: Option<String>,
     pub actions: Vec<String>,
 }
@@ -625,7 +837,7 @@ pub struct AppInfo {
     pub services: HashSet<Service>,
     pub receivers: HashSet<Receiver>,
     pub permissions: HashSet<String>,
-    pub uid: Option<u32>,
+    pub uid: Option<i64>,
 }
 
 impl Clone for AppInfo {

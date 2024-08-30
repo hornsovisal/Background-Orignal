@@ -1,7 +1,7 @@
-use controller::Controller;
-use device::DeviceManager;
+use controller::{BroadcastRequest, Controller, JobRequest};
+use device::{Device, DeviceManager};
 use error::Error;
-use events::{EbpfEvent, Events};
+use events::Events;
 use futures::StreamExt;
 use service::{AsyncSocket, TcpService, WsStream};
 use tls::TlsAcceptor;
@@ -14,24 +14,26 @@ mod events;
 mod service;
 mod tls;
 
+const MITMDUMP_PATH: &str = "/home/sajjad/.local/bin/mitmdump";
+const MAX_PARALLEL: u8 = 8; // 10
+
 #[tokio::main]
 async fn main() -> Result<(), Error> {
+    console_subscriber::init();
+    let path = std::env::args().nth(1).unwrap();
     let action_db = action_db::ActionDb::new("action.db")?;
     let device_manager = DeviceManager::new(action_db.clone()).await;
     let mut controller = Controller::new(device_manager.devices).await?;
     let event_sender = controller.event_sender.clone();
     let jobsender = controller.job_sender.clone();
-    controller
-        .load_apps("/Users/sajjad/Desktop/host/al/")
-        .await?;
-
-    controller.run().await?;
+    controller.load_apps(&path).await?;
     let acceptor = TlsAcceptor::new_from_file(
-        "/Users/sajjad/Desktop/host/ca.pem",
-        "/Users/sajjad/Desktop/host/ca.key",
-        vec!["192.168.70.100".to_string()],
+        "ca.pem",
+        "ca.key",
+        vec!["172.30.143.86".to_string(), "172.30.143.74".to_string()],
     )?;
     let mut service = TcpService::new("0.0.0.0:8888".to_string()).await;
+    controller.run().await?;
     while let Some(stream) = service.next().await {
         match stream {
             Ok(stream) => {
@@ -81,21 +83,29 @@ async fn main() -> Result<(), Error> {
 
                                 match event {
                                     Events::JobScheduler(jobinfo) => {
+                                        let job_request = JobRequest {
+                                            ip: peer_ip,
+                                            pkg: jobinfo.package_name,
+                                            jid: jobinfo.job_id,
+                                        };
                                         _ = jobsender
-                                            .send((peer_ip, jobinfo.uid, jobinfo.job_id))
+                                            .send(controller::RequestedAction::Job(job_request))
                                             .await;
                                     }
                                     Events::OnStartJob(_e) => {}
                                     Events::Intent(e) => {
-                                        if !e.data.is_empty() {
-                                            _ = action_db.add_action(e.action, e.data);
-                                        }
+                                        _ = action_db.add_action(
+                                            e.action.clone(),
+                                            e.data,
+                                            e.extras,
+                                        );
+                                    }
+                                    Events::OnReceiveHook(e) => {
+                                        _ = action_db.add_action(e.action, e.data, e.extras);
                                     }
                                     Events::OnCreate(_e) => {}
                                     Events::GetBroadcast(e) => {
-                                        if !e.data.is_empty() {
-                                            _ = action_db.add_action(e.action, e.data);
-                                        }
+                                        _ = action_db.add_action(e.action, e.data, e.extras);
                                     }
                                     Events::DoFinal(_e) => {}
                                     Events::DoFinalByte(_e) => {}
@@ -116,32 +126,57 @@ async fn main() -> Result<(), Error> {
                                     Events::UpdateAADByteBuffer(_e) => {}
                                     Events::StartForeground(_e) => {}
                                     Events::OnStartCommand(e) => {
-                                        if !e.data.is_empty() {
-                                            _ = action_db.add_action(e.action, e.data);
-                                        }
+                                        _ = action_db.add_action(e.action, e.data, e.extras);
                                     }
                                     Events::OnBind(e) => {
-                                        if !e.data.is_empty() {
-                                            _ = action_db.add_action(e.action, e.data);
-                                        }
+                                        _ = action_db.add_action(e.action, e.data, e.extras);
                                     }
                                     Events::SetImpl(_e) => {}
                                     Events::SetAlarmClock(_e) => {}
                                     Events::PendingIntentGet(e) => {
-                                        if !e.data.is_empty() {
-                                            _ = action_db.add_action(e.action, e.data);
-                                        }
+                                        _ = action_db.add_action(
+                                            e.action.clone(),
+                                            e.data,
+                                            e.extras,
+                                        );
                                     }
-                                    Events::ScheduleInternal(e) => {
-                                        _ = jobsender.send((peer_ip, e.uid, e.job_id)).await;
+                                    Events::ScheduleInternal(jobinfo) => {
+                                        let job_request = JobRequest {
+                                            ip: peer_ip,
+                                            pkg: jobinfo.package_name,
+                                            jid: jobinfo.job_id,
+                                        };
+                                        _ = jobsender
+                                            .send(controller::RequestedAction::Job(job_request))
+                                            .await;
                                     }
-                                    Events::RequestAndDoWork(_e) => {}
+                                    Events::DoWork(_e) => {}
+                                    Events::RequestWork(_e) => {}
                                     Events::GenericHook(_e) => {}
-                                    Events::EbpfEvent(e) => match e {
-                                        EbpfEvent::ProcessFork(_e, _ts) => {}
-                                        EbpfEvent::SocketAddrV6(_e, _ts) => {}
-                                        EbpfEvent::SocketAddrV4(_e, _ts) => {}
-                                    },
+                                    Events::RegisterReceiver(e) => {
+                                        let broadcast_request = BroadcastRequest {
+                                            ip: peer_ip,
+                                            pkg: e.package_name,
+                                            class: e.register_class,
+                                            actions: e.actions,
+                                        };
+                                        _ = jobsender
+                                            .send(controller::RequestedAction::Broadcast(
+                                                broadcast_request,
+                                            ))
+                                            .await;
+                                    }
+                                    Events::DeviceID(_e) => {}
+                                    Events::StartThreadHook(_e) => {}
+                                    Events::Canary(_e) => {}
+                                    Events::SchedProcessFork(_e) => {}
+                                    Events::SchedProcessExit(_e) => {}
+                                    Events::TaskNewtask(_e) => {}
+                                    // Events::TaskRename(_e) => {}
+                                    Events::SocketAddrV6(_e) => {}
+                                    Events::SocketAddrV4(_e) => {}
+                                    Events::SocketHook(_e) => {}
+                                    Events::ConnectHook(_e) => {}
                                     Events::Other(_e) => {}
                                 }
                             }

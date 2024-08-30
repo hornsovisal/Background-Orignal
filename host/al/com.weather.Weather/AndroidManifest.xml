@@ -1,0 +1,689 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:amazon="http://schemas.amazon.com/apk/res/android" xmlns:android="http://schemas.android.com/apk/res/android" android:versionCode="1069010149" android:versionName="10.69.1" android:compileSdkVersion="33" android:compileSdkVersionCodename="13" package="com.weather.Weather" platformBuildVersionCode="33" platformBuildVersionName="13">
+    <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="33"/>
+    <permission android:name="com.weather.Weather.permission.RECEIVE_ADM_MESSAGE" android:protectionLevel="signature"/>
+    <uses-permission android:name="com.weather.Weather.permission.RECEIVE_ADM_MESSAGE"/>
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <uses-permission android:name="android.permission.VIBRATE"/>
+    <uses-permission android:name="com.google.android.c2dm.permission.RECEIVE"/>
+    <uses-permission android:name="android.permission.USE_CREDENTIALS"/>
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="com.google.android.providers.gsf.permission.READ_GSERVICES"/>
+    <uses-permission android:name="com.amazon.device.messaging.permission.RECEIVE"/>
+    <uses-feature android:glEsVersion="0x20000" android:required="true"/>
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
+    <uses-feature android:name="android.hardware.Sensor" android:required="false"/>
+    <uses-feature android:name="android.hardware.location.gps" android:required="false"/>
+    <uses-feature android:name="android.hardware.type.pc" android:required="false"/>
+    <queries>
+        <package android:name="com.google.android.gm"/>
+        <package android:name="com.taboola.taboolasdkmonitor"/>
+        <package android:name="com.android.chrome"/>
+        <intent>
+            <action android:name="android.support.customtabs.action.CustomTabsService"/>
+        </intent>
+        <package android:name="com.google.android.apps.maps"/>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <category android:name="android.intent.category.BROWSABLE"/>
+            <data android:scheme="https"/>
+        </intent>
+        <intent>
+            <action android:name="com.appsflyer.referrer.INSTALL_PROVIDER"/>
+        </intent>
+    </queries>
+    <uses-feature android:name="android.hardware.location.network" android:required="false"/>
+    <uses-feature android:name="android.hardware.location" android:required="false"/>
+    <uses-feature android:name="android.hardware.sensor.barometer" android:required="false"/>
+    <uses-permission android:name="com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE"/>
+    <uses-feature android:name="android.hardware.wifi" android:required="false"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="com.android.vending.BILLING"/>
+    <application android:theme="@style/AppThemeTWC" android:label="@string/flagship_app_name" android:icon="@mipmap/ic_launcher" android:name="com.weather.Weather.app.FlagshipApplication" android:allowBackup="false" android:logo="@drawable/ic_twc_logo" android:largeHeap="true" android:supportsRtl="true" android:extractNativeLibs="false" android:fullBackupContent="@xml/appsflyer_backup_rules" android:networkSecurityConfig="@xml/network_security_config" android:roundIcon="@mipmap/ic_launcher_round" android:appComponentFactory="androidx.core.app.CoreComponentFactory">
+        <activity android:theme="@style/AppThemeTWC" android:label="@string/inapp_report_remove_ads" android:name="com.weather.Weather.inapp.InAppPurchaseDetailScreenActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="weather"/>
+                <data android:host="adfree"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="twcweather"/>
+                <data android:host="purchase"/>
+            </intent-filter>
+        </activity>
+        <meta-data android:name="android.max_aspect" android:value="2.1"/>
+        <activity android:theme="@style/MainAppThemeTWC" android:label="@string/flagship_app_name" android:name="com.weather.Weather.daybreak.MainActivity" android:exported="false" android:launchMode="singleTask" android:windowSoftInputMode="adjustPan"/>
+        <activity android:theme="@style/SplashThemeTWC" android:label="@string/flagship_app_name" android:name="com.weather.Weather.app.SplashScreenActivity" android:exported="true" android:finishOnTaskLaunch="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEARCH"/>
+            </intent-filter>
+            <intent-filter android:label="@string/filter_title_hourly">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="weather"/>
+                <data android:host="hourlyDetail"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https" android:host="appweather.page.link"/>
+            </intent-filter>
+            <meta-data android:name="android.app.searchable" android:resource="@xml/searchable"/>
+            <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts"/>
+        </activity>
+        <activity android:theme="@style/SplashPremiumThemeTWC" android:label="@string/flagship_app_name" android:name="com.weather.Weather.app.PremiumSplashScreenActivity" android:exported="true" android:finishOnTaskLaunch="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+            </intent-filter>
+        </activity>
+        <activity android:theme="@style/OnboardingThemeTWC" android:name="com.weather.Weather.app.NoLocationActivity" android:exported="false" android:launchMode="singleTop" android:windowSoftInputMode="adjustPan"/>
+        <activity android:label="@string/flagship_app_name" android:name="com.weather.Weather.app.bounce.Flu" android:exported="true">
+            <intent-filter android:label="@string/filter_title_flu">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="weather"/>
+                <data android:host="flu"/>
+            </intent-filter>
+        </activity>
+        <activity android:label="@string/flagship_app_name" android:name="com.weather.Weather.app.bounce.BoatAndBeach" android:exported="true">
+            <intent-filter android:label="@string/bb_activity_title">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="weather"/>
+                <data android:host="tides"/>
+            </intent-filter>
+        </activity>
+        <activity android:label="@string/flagship_app_name" android:name="com.weather.Weather.app.bounce.Hourly" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="weather"/>
+                <data android:host="hourly"/>
+            </intent-filter>
+        </activity>
+        <activity android:label="@string/flagship_app_name" android:name="com.weather.Weather.app.bounce.Map" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="weather"/>
+                <data android:host="map"/>
+            </intent-filter>
+        </activity>
+        <activity android:label="@string/flagship_app_name" android:name="com.weather.Weather.app.bounce.Now" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="weather"/>
+                <data android:host="now"/>
+            </intent-filter>
+        </activity>
+        <activity android:label="@string/flagship_app_name" android:name="com.weather.Weather.app.bounce.News" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="weather"/>
+                <data android:host="news"/>
+            </intent-filter>
+        </activity>
+        <activity android:label="@string/flagship_app_name" android:name="com.weather.Weather.app.bounce.Health" android:exported="true">
+            <intent-filter android:label="@string/filter_title_pollen">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="weather"/>
+                <data android:host="pollen"/>
+            </intent-filter>
+        </activity>
+        <activity android:label="@string/allergy_activity_label" android:name="com.weather.Weather.app.bounce.AllergyDetailsBounceActivity" android:exported="true">
+            <intent-filter android:label="@string/allergy_activity_label">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="weather" android:host="allergy"/>
+                <data android:scheme="weather" android:host="health"/>
+                <data android:scheme="weather" android:host="allergyDetail"/>
+            </intent-filter>
+        </activity>
+        <activity android:label="@string/flagship_app_name" android:name="com.weather.Weather.app.bounce.RightNow" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="weather"/>
+                <data android:host="rightnow"/>
+            </intent-filter>
+        </activity>
+        <activity android:label="@string/flagship_app_name" android:name="com.weather.Weather.app.bounce.Running" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="weather"/>
+                <data android:host="running"/>
+            </intent-filter>
+        </activity>
+        <activity android:label="@string/flagship_app_name" android:name="com.weather.Weather.app.bounce.TenDay" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="weather"/>
+                <data android:host="today"/>
+                <data android:host="tenday"/>
+                <data android:host="fiveday"/>
+                <data android:host="weekend"/>
+                <data android:host="tomorrow"/>
+                <data android:host="extended"/>
+                <data android:host="36hour"/>
+            </intent-filter>
+        </activity>
+        <activity android:label="@string/flagship_app_name" android:name="com.weather.Weather.app.bounce.Video" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="weather"/>
+                <data android:host="video"/>
+            </intent-filter>
+        </activity>
+        <activity android:label="@string/flagship_app_name" android:name="com.weather.Weather.app.bounce.RainSnow" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="weather"/>
+                <data android:host="rainSnowAlertSettings"/>
+            </intent-filter>
+        </activity>
+        <activity android:label="@string/flagship_app_name" android:name="com.weather.Weather.app.bounce.BreakingNews" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="weather"/>
+                <data android:host="breakingNews"/>
+            </intent-filter>
+        </activity>
+        <activity android:label="@string/flagship_app_name" android:name="com.weather.Weather.app.bounce.SevereAlerts" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="weather"/>
+                <data android:host="severeAlertSettings"/>
+            </intent-filter>
+        </activity>
+        <activity android:label="@string/flagship_app_name" android:name="com.weather.Weather.app.bounce.RealTimeRainAlerts" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="weather"/>
+                <data android:host="realTimeRainSettings"/>
+            </intent-filter>
+        </activity>
+        <activity android:label="@string/flagship_app_name" android:name="com.weather.Weather.app.bounce.LightningStrikesAlerts" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="weather"/>
+                <data android:host="lightningStrikesAlertSettings"/>
+            </intent-filter>
+        </activity>
+        <activity android:label="@string/flagship_app_name" android:name="com.weather.Weather.app.bounce.StoriesDetailsBounceActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="weather"/>
+                <data android:host="stories"/>
+            </intent-filter>
+        </activity>
+        <activity android:label="@string/flagship_app_name" android:name="com.weather.Weather.app.bounce.PollenAlertSettings" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="weather"/>
+                <data android:host="pollenAlertSettings"/>
+            </intent-filter>
+        </activity>
+        <activity android:label="@string/flagship_app_name" android:name="com.weather.Weather.app.bounce.BreakingNewsAlertSettings" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="weather"/>
+                <data android:host="breakingNewsAlertSettings"/>
+            </intent-filter>
+        </activity>
+        <activity android:theme="@style/SplashThemeTWC" android:label="@string/hourly_title" android:name="com.weather.Weather.hourly.NgHourlyForecastDetailActivity" android:exported="false" android:launchMode="singleTop" android:configChanges="screenSize|orientation|keyboardHidden" android:parentActivityName="com.weather.Weather.daybreak.MainActivity"/>
+        <activity android:theme="@style/SplashThemeTWC" android:name="com.weather.Weather.daybreak.daily.DailyActivity" android:exported="false" android:launchMode="singleTop" android:configChanges="screenSize|orientation|keyboardHidden" android:parentActivityName="com.weather.Weather.daybreak.MainActivity"/>
+        <activity android:theme="@style/LightTheme" android:label="@string/allergy_activity_label" android:name="com.weather.Weather.pollen.AllergyMainActivity" android:exported="false" android:launchMode="singleTop" android:configChanges="screenSize|orientation|keyboardHidden" android:parentActivityName="com.weather.Weather.daybreak.MainActivity"/>
+        <activity android:theme="@style/LightTheme" android:name="com.weather.Weather.run.RunMainActivity" android:exported="true" android:launchMode="singleTop" android:configChanges="screenSize|orientation|keyboardHidden" android:parentActivityName="com.weather.Weather.daybreak.MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="weather"/>
+                <data android:host="gorun"/>
+            </intent-filter>
+        </activity>
+        <activity android:theme="@style/DetailFeedTheme" android:name="com.weather.Weather.boat.BoatAndBeachMainActivity" android:exported="true" android:launchMode="singleTop" android:configChanges="screenSize|orientation|keyboardHidden" android:parentActivityName="com.weather.Weather.daybreak.MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="weather"/>
+                <data android:host="boatandbeach"/>
+            </intent-filter>
+        </activity>
+        <activity android:name="com.weather.Weather.app.bounce.DailyWeekendBounceActivity" android:exported="false">
+            <intent-filter android:label="@string/filter_title_tendayweekend">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="weather"/>
+                <data android:host="weekendDetail"/>
+            </intent-filter>
+        </activity>
+        <activity android:theme="@style/SplashThemeTWC" android:name="com.weather.Weather.video.AppShortcutVideoStarterActivity" android:exported="false"/>
+        <activity android:theme="@style/AppThemeTWC" android:label="@string/video_label" android:name="com.weather.Weather.video.VideoActivity" android:exported="true" android:configChanges="screenSize|orientation|keyboardHidden" android:parentActivityName="com.weather.Weather.daybreak.MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="weather"/>
+                <data android:host="videoDetail"/>
+            </intent-filter>
+        </activity>
+        <activity android:theme="@style/AppThemeTWC" android:label="@string/news_activity_label" android:name="com.weather.Weather.news.TopStoriesActivity" android:exported="true" android:launchMode="singleTop" android:configChanges="screenSize|orientation|keyboardHidden" android:parentActivityName="com.weather.Weather.daybreak.MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="weather"/>
+                <data android:host="newsDetail"/>
+            </intent-filter>
+        </activity>
+        <activity android:theme="@style/AppThemeTWC" android:label="@string/news_activity_label" android:name="com.weather.Weather.news.ui.SingleNewsArticleActivity" android:exported="false" android:launchMode="singleTop" android:configChanges="screenSize|orientation|keyboardHidden" android:parentActivityName="com.weather.Weather.daybreak.MainActivity"/>
+        <activity android:theme="@style/AppThemeTWC" android:label="@string/breaking_news_activity_label" android:name="com.weather.Weather.news.ui.BreakingNewsActivity" android:exported="false" android:launchMode="singleTop" android:configChanges="screenSize|orientation|keyboardHidden" android:parentActivityName="com.weather.Weather.daybreak.MainActivity"/>
+        <activity android:theme="@style/LightTheme" android:label="@string/severe_subtitle" android:name="com.weather.Weather.severe.SevereWeatherAlertActivity" android:exported="true" android:launchMode="singleTop" android:parentActivityName="com.weather.Weather.daybreak.MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="weather"/>
+                <data android:host="alertsDetail"/>
+            </intent-filter>
+        </activity>
+        <activity android:label="@string/severe_subtitle" android:name="com.weather.Weather.severe.SevereWeatherAlertDetailActivity" android:exported="false" android:launchMode="singleTop"/>
+        <activity android:theme="@style/SettingsTheme" android:label="@string/settings" android:name="com.weather.Weather.settings.SettingsActivity" android:exported="true" android:launchMode="singleTop" android:configChanges="orientation|keyboardHidden" android:windowSoftInputMode="adjustResize" android:parentActivityName="com.weather.Weather.daybreak.MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="weather"/>
+                <data android:host="settings"/>
+            </intent-filter>
+        </activity>
+        <activity android:name="com.weather.Weather.alertcenter.main.AlertCenterActivity" android:exported="false"/>
+        <activity android:theme="@style/SettingsTheme" android:label="@string/settings" android:name="com.weather.Weather.settings.testmode.ConfigOverrideActivity" android:exported="false" android:launchMode="singleTop" android:configChanges="orientation|keyboardHidden" android:windowSoftInputMode="adjustPan" android:parentActivityName="com.weather.Weather.settings.SettingsActivity"/>
+        <activity android:theme="@style/SettingsTheme" android:label="@string/user_groups_activity_title" android:name="com.weather.Weather.settings.testmode.GroupsManagerActivity" android:exported="false"/>
+        <activity android:theme="@style/SettingsTheme" android:label="@string/user_branches_activity_title" android:name="com.weather.Weather.settings.testmode.BranchesManagerActivity" android:exported="false"/>
+        <activity android:theme="@style/SettingsTheme" android:name="com.weather.Weather.app.bounce.DaltonLaunchBounceActivity" android:exported="true" android:launchMode="singleTop" android:configChanges="orientation|keyboardHidden" android:windowSoftInputMode="adjustPan" android:parentActivityName="com.weather.Weather.daybreak.MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="weather"/>
+                <data android:host="daltonLaunch"/>
+            </intent-filter>
+        </activity>
+        <activity android:name="android.app.Activity" android:exported="false"/>
+        <activity android:theme="@android:style/Theme.Translucent.NoTitleBar" android:name="com.weather.Weather.metering.MeteringActivity" android:exported="false" android:configChanges="screenSize|orientation|keyboardHidden" android:noHistory="true"/>
+        <provider android:name="com.taboola.android.TaboolaContextProvider" android:enabled="false" android:exported="false" android:authorities="com.weather.Weather.TaboolaContextProvider"/>
+        <provider android:name="com.weather.Weather.news.provider.TopStoriesProvider" android:exported="false" android:authorities="com.weather.weather.provider.topstories">
+            <grant-uri-permission android:pathPattern=".*"/>
+        </provider>
+        <provider android:name="com.weather.Weather.glance.provider.AlertsProvider" android:exported="false" android:authorities="com.weather.weather.provider.alerts">
+            <grant-uri-permission android:pathPattern=".*"/>
+        </provider>
+        <provider android:name="androidx.core.content.FileProvider" android:exported="false" android:authorities="com.weather.Weather.fileprovider" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/filepaths"/>
+        </provider>
+        <service android:name="com.weather.Weather.airlock.AirlockNotificationsService" android:exported="false"/>
+        <receiver android:name="com.weather.dal2.system.UniversalBroadcastReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.LOCALE_CHANGED"/>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.USER_PRESENT"/>
+                <action android:name="android.intent.action.ACTION_POWER_CONNECTED"/>
+                <action android:name="android.intent.action.ACTION_POWER_DISCONNECTED"/>
+                <action android:name="android.location.PROVIDERS_CHANGED"/>
+                <action android:name="android.intent.action.AIRPLANE_MODE"/>
+                <action android:name="android.intent.action.ACTION_SHUTDOWN"/>
+            </intent-filter>
+        </receiver>
+        <receiver android:name="com.weather.Weather.config.ConfigRefreshBroadcastReceiver" android:exported="false"/>
+        <receiver android:name="com.weather.Weather.receiver.TimeZoneLocaleChangeReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.DATE_CHANGED"/>
+                <action android:name="android.intent.action.TIME_SET"/>
+                <action android:name="android.intent.action.TIMEZONE_CHANGED"/>
+                <action android:name="android.intent.action.LOCALE_CHANGED"/>
+            </intent-filter>
+        </receiver>
+        <receiver android:name="com.weather.Weather.push.NotificationDismissReceiver" android:exported="false"/>
+        <service android:name="com.weather.Weather.push.FcmMessageService" android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT"/>
+                <category android:name="com.weather.Weather.permission.RECEIVE_ADM_MESSAGE"/>
+            </intent-filter>
+        </service>
+        <enable-feature android:name="com.amazon.device.messaging" android:required="false"/>
+        <service android:name="com.weather.Weather.push.AdmMessageService" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false"/>
+        <service android:name="com.weather.Weather.push.AdmLegacyMessageService" android:exported="false"/>
+        <receiver android:name="com.weather.Weather.push.AdmMessageReceiver" android:permission="com.amazon.device.messaging.permission.SEND" android:exported="true">
+            <intent-filter>
+                <action android:name="com.amazon.device.messaging.intent.REGISTRATION"/>
+                <action android:name="com.amazon.device.messaging.intent.RECEIVE"/>
+                <category android:name="com.weather.Weather"/>
+            </intent-filter>
+        </receiver>
+        <receiver android:label="@string/widget_display_name_next_gen_45x2" android:name="com.weather.Weather.widgets.WeatherWidgetProviderTwoRowsResizable" android:exported="true">
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/ng_widget_resizable_config"/>
+            <intent-filter>
+                <action android:name="com.weather.Weather.widgets.action.REFRESH"/>
+                <action android:name="com.weather.Weather.widgets.action.CLOCK_REFRESH"/>
+                <action android:name="com.weather.Weather.widgets.action.REFRESH_HAPPENING"/>
+                <action android:name="com.weather.Weather.widgets.action.REFRESH_TIMEOUT"/>
+                <action android:name="com.weather.Weather.widgets.action.DISABLE_FOLLOW_ME_WIDGETS"/>
+                <action android:name="android.appwidget.action.APPWIDGET_DELETED"/>
+                <action android:name="android.appwidget.action.APPWIDGET_ENABLED"/>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+            </intent-filter>
+        </receiver>
+        <receiver android:label="@string/resizable" android:name="com.weather.Weather.widgets.WeatherWidgetProviderResizable" android:exported="true">
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_resizable"/>
+            <intent-filter>
+                <action android:name="com.weather.Weather.widgets.action.REFRESH"/>
+                <action android:name="com.weather.Weather.widgets.action.CLOCK_REFRESH"/>
+                <action android:name="com.weather.Weather.widgets.action.REFRESH_HAPPENING"/>
+                <action android:name="com.weather.Weather.widgets.action.REFRESH_TIMEOUT"/>
+                <action android:name="com.weather.Weather.widgets.action.DISABLE_FOLLOW_ME_WIDGETS"/>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+            </intent-filter>
+        </receiver>
+        <receiver android:label="Widget 1x1" android:name="com.weather.Weather.widgets.WeatherWidgetProvider1x1" android:exported="true">
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_1x1"/>
+            <intent-filter>
+                <action android:name="com.weather.Weather.widgets.action.REFRESH"/>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+                <action android:name="android.appwidget.action.APPWIDGET_DELETED"/>
+                <action android:name="android.appwidget.action.APPWIDGET_ENABLED"/>
+                <action android:name="com.weather.Weather.widgets.action.DISABLE_FOLLOW_ME_WIDGETS"/>
+            </intent-filter>
+        </receiver>
+        <receiver android:label="Widget 2x2 " android:name="com.weather.Weather.widgets.WeatherWidgetProvider2x2" android:exported="true">
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_2x2"/>
+            <intent-filter>
+                <action android:name="com.weather.Weather.widgets.action.REFRESH"/>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+                <action android:name="android.appwidget.action.APPWIDGET_DELETED"/>
+                <action android:name="android.appwidget.action.APPWIDGET_ENABLED"/>
+                <action android:name="com.weather.Weather.widgets.action.DISABLE_FOLLOW_ME_WIDGETS"/>
+            </intent-filter>
+        </receiver>
+        <receiver android:label="Widget 4x1" android:name="com.weather.Weather.widgets.WeatherWidgetProvider4x1" android:exported="true">
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_4x1"/>
+            <intent-filter>
+                <action android:name="com.weather.Weather.widgets.action.REFRESH"/>
+                <action android:name="com.weather.Weather.widgets.action.CLOCK_REFRESH"/>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+                <action android:name="android.appwidget.action.APPWIDGET_DELETED"/>
+                <action android:name="android.appwidget.action.APPWIDGET_ENABLED"/>
+                <action android:name="com.weather.Weather.widgets.action.DISABLE_FOLLOW_ME_WIDGETS"/>
+            </intent-filter>
+        </receiver>
+        <receiver android:label="Widget 4x2" android:name="com.weather.Weather.widgets.WeatherWidgetProvider4x2" android:exported="true">
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widgetprovider_4x2"/>
+            <intent-filter>
+                <action android:name="com.weather.Weather.widgets.action.REFRESH"/>
+                <action android:name="com.weather.Weather.widgets.action.CLOCK_REFRESH"/>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+                <action android:name="android.appwidget.action.APPWIDGET_DELETED"/>
+                <action android:name="android.appwidget.action.APPWIDGET_ENABLED"/>
+                <action android:name="com.weather.Weather.widgets.action.DISABLE_FOLLOW_ME_WIDGETS"/>
+            </intent-filter>
+        </receiver>
+        <activity android:theme="@style/AppThemeTWC" android:label="@string/flagship_app_name" android:name="com.weather.Weather.app.bounce.MapActivity" android:exported="true" android:launchMode="singleTop" android:configChanges="screenSize|orientation|keyboardHidden|locale" android:parentActivityName="com.weather.Weather.daybreak.MainActivity">
+            <intent-filter android:label="@string/filter_title_map">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="weather" android:host="mapDetail"/>
+                <data android:scheme="weather" android:host="hurricaneCentralDetail"/>
+            </intent-filter>
+        </activity>
+        <activity android:theme="@style/LightTheme" android:label="@string/flagship_app_name" android:name="com.weather.Weather.map.interactive.pangea.NeoMapActivity" android:exported="false" android:launchMode="singleTop" android:configChanges="screenSize|orientation|keyboardHidden|locale" android:parentActivityName="com.weather.Weather.daybreak.MainActivity"/>
+        <activity android:theme="@style/SplashThemeTWC" android:label="@string/flagship_app_name" android:name="com.weather.Weather.stories.StoriesActivity" android:exported="false" android:launchMode="singleTop" android:configChanges="screenSize|orientation|keyboardHidden|locale" android:parentActivityName="com.weather.Weather.daybreak.MainActivity"/>
+        <activity android:theme="@style/SplashThemeTWC" android:label="@string/flagship_app_name" android:name="com.weather.Weather.daybreak.navigation.WebviewActivity" android:exported="false" android:launchMode="standard" android:configChanges="screenSize|orientation|keyboardHidden|locale" android:parentActivityName="com.weather.Weather.daybreak.MainActivity"/>
+        <activity android:theme="@style/LightTheme" android:label="@string/flagship_app_name" android:name="com.weather.Weather.map.interactive.pangea.NeoMapActivityWithDdiMetadata" android:exported="false" android:launchMode="singleTop" android:configChanges="screenSize|orientation|keyboardHidden|locale" android:parentActivityName="com.weather.Weather.daybreak.MainActivity"/>
+        <activity android:theme="@style/LightTheme" android:label="@string/flagship_app_name" android:name="com.weather.Weather.map.interactive.pangea.NeoMapActivityWithStormMetadata" android:exported="false" android:launchMode="singleTop" android:configChanges="screenSize|orientation|keyboardHidden|locale" android:parentActivityName="com.weather.Weather.daybreak.MainActivity"/>
+        <activity android:theme="@style/LightTheme" android:label="@string/flagship_app_name" android:name="com.weather.Weather.map.interactive.pangea.NeoMapActivityWithWinterMetadata" android:exported="false" android:launchMode="singleTop" android:configChanges="screenSize|orientation|keyboardHidden|locale" android:parentActivityName="com.weather.Weather.daybreak.MainActivity"/>
+        <activity android:theme="@style/LightTheme" android:name="com.weather.Weather.map.interactive.pangea.fds.StormCellDetailsActivity" android:exported="false" android:launchMode="singleTop" android:configChanges="screenSize|orientation|keyboardHidden|locale" android:parentActivityName="com.weather.Weather.map.interactive.pangea.NeoMapActivity"/>
+        <activity android:name="com.weather.Weather.map.interactive.pangea.TropicalTracksInfoActivity" android:exported="false" android:launchMode="singleTop" android:configChanges="screenSize|orientation|keyboardHidden|locale" android:parentActivityName="com.weather.Weather.map.interactive.pangea.NeoMapActivity"/>
+        <activity android:theme="@style/WidgetConfigurationTheme" android:name="com.weather.Weather.widgets.WidgetConfigurationScreenActivity" android:exported="true" android:launchMode="singleTop" android:windowSoftInputMode="adjustPan"/>
+        <meta-data android:name="com.google.android.gms.version" android:value="@integer/google_play_services_version"/>
+        <activity android:theme="@style/SettingsTheme" android:label="@string/user_groups_activity_title" android:name="com.weather.airlock.sdk.ui.GroupsManagerActivity" android:exported="false"/>
+        <activity android:theme="@style/DebugModeSettingsTheme" android:label="@string/entitlements_list_activity_title" android:name="com.weather.airlock.sdk.ui.EntitlementsManagerActivity" android:exported="false"/>
+        <activity android:theme="@style/SettingsTheme" android:label="@string/user_branches_activity_title" android:name="com.weather.airlock.sdk.ui.BranchesManagerActivity" android:exported="false"/>
+        <activity android:theme="@style/SettingsTheme" android:label="@string/user_branches_activity_title" android:name="com.weather.airlock.sdk.ui.StreamsManagerActivity" android:exported="false"/>
+        <activity android:theme="@style/SettingsTheme" android:label="@string/user_airlytics_activity_title" android:name="com.weather.airlock.sdk.ui.AirlyticsManagerActivity" android:exported="false"/>
+        <activity android:theme="@style/SettingsTheme" android:label="@string/user_branches_activity_title" android:name="com.weather.airlock.sdk.ui.DebugExperimentsActivity" android:exported="false"/>
+        <activity android:theme="@style/DebugModeSettingsTheme" android:label="@string/airlock_features_activity_title" android:name="com.weather.airlock.sdk.ui.DebugFeaturesActivity" android:exported="false" android:windowSoftInputMode="stateHidden"/>
+        <activity android:theme="@style/AppThemeTWC" android:label="@string/flu_detail_title" android:name="com.weather.Weather.watsonmoments.WatsonDetailsActivity" android:exported="true" android:launchMode="singleTop" android:parentActivityName="com.weather.Weather.daybreak.MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="weather"/>
+                <data android:host="coldflu"/>
+            </intent-filter>
+        </activity>
+        <activity android:theme="@style/AppThemeTWC" android:label="@string/allergy_activity_label" android:name="com.weather.Weather.watsonmoments.allergy.WMAllergyDetailsActivity" android:exported="false" android:launchMode="singleTop" android:parentActivityName="com.weather.Weather.daybreak.MainActivity"/>
+        <activity android:theme="@style/OnboardingThemeTWC" android:label="GdprFlagshipOnboardingActivity" android:name="com.weather.Weather.privacy.GdprFlagshipOnboardingActivity" android:exported="false"/>
+        <activity android:theme="@style/OnboardingThemeTWC" android:label="FinishOnboardingActivity" android:name="com.weather.Weather.privacy.OnboardingActivity" android:exported="false"/>
+        <activity android:theme="@style/SplashThemeTWC" android:name="com.weather.Weather.permissions.NotificationPermissionActivity" android:exported="false"/>
+        <activity android:theme="@style/SplashThemeTWC" android:name="com.weather.Weather.privacy.LocationPermissionActivity" android:exported="false"/>
+        <activity android:name="com.weather.Weather.app.OnboardingSignUpActivity" android:exported="false"/>
+        <activity android:theme="@style/OnboardingThemeTWC" android:name="com.weather.Weather.daybreak.onboarding.AppOnboardingActivity" android:exported="false"/>
+        <activity android:name="com.weather.Weather.settings.FlagshipPrivacySettingsWebViewActivity" android:exported="false"/>
+        <activity android:theme="@style/AppThemeTWC" android:label="@string/seasonal_hub_title" android:name="com.weather.Weather.daybreak.seasonal.SeasonalHubDetailsActivity" android:exported="false" android:launchMode="singleTop" android:configChanges="screenSize|orientation|keyboardHidden" android:parentActivityName="com.weather.Weather.daybreak.MainActivity"/>
+        <activity android:theme="@style/AppThemeTWC" android:label="@string/air_quality_card_title" android:name="com.weather.Weather.daybreak.airquality.AirQualityDetailsActivity" android:exported="true" android:launchMode="singleTop" android:configChanges="screenSize|orientation|keyboardHidden" android:parentActivityName="com.weather.Weather.daybreak.MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="weather"/>
+                <data android:host="aq"/>
+            </intent-filter>
+        </activity>
+        <activity android:theme="@style/AppThemeTWC" android:name="com.weather.Weather.daybreak.trending.TrendingConditionsActivity" android:exported="false" android:launchMode="singleTop" android:configChanges="screenSize|orientation|keyboardHidden"/>
+        <activity android:theme="@style/AppThemeTWC" android:label="@string/flu_news_activity_label" android:name="com.weather.Weather.watsonmoments.editorial.WatsonNewsActivity" android:exported="false" android:launchMode="singleTop" android:configChanges="screenSize|orientation|keyboardHidden"/>
+        <service android:name="com.weather.Weather.widgets.WidgetDataRefreshService" android:exported="false"/>
+        <service android:name="com.weather.dal2.lbs.LbsService" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false"/>
+        <service android:name="com.weather.dal2.weatherconnections.RefreshJob" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false"/>
+        <service android:name="com.weather.dal2.weatherconnections.RefreshService" android:exported="false"/>
+        <service android:name="com.weather.Weather.news.provider.NewsDownloadService" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false"/>
+        <service android:name="com.weather.Weather.notifications.ongoing.NotificationApi24" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false"/>
+        <service android:name="com.weather.Weather.notifications.ongoing.NotificationApi23" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false"/>
+        <service android:name="com.weather.Weather.airlock.sync.AirlockSyncConfigJob" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false"/>
+        <service android:name="com.weather.Weather.push.PushService" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false"/>
+        <service android:name="com.weather.Weather.push.notifications.AlertProcessingService" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false"/>
+        <service android:name="com.weather.Weather.config.ConfigRefreshService" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false"/>
+        <service android:name="com.weather.airlytics.sessions.CloseSessionService" android:permission="android.permission.BIND_JOB_SERVICE" android:enabled="true" android:exported="false"/>
+        <meta-data android:name="com.google.android.gms.ads.AD_MANAGER_APP" android:value="true"/>
+        <meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="ca-app-pub-1106337062030359~5027352122"/>
+        <activity android:name="com.amazon.device.ads.DTBActivity" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="amazonmobile" android:host="intent"/>
+            </intent-filter>
+        </activity>
+        <service android:name="com.weather.android.profilekit.ups.UpsSyncUpService" android:exported="false"/>
+        <activity android:name="com.weather.privacy.ui.sharedata.ShareDataActivity" android:exported="false"/>
+        <activity android:name="com.weather.privacy.ui.dsr.PrivacyDsrWebViewActivity" android:exported="false"/>
+        <activity android:name="com.weather.privacy.ui.webview.LocalWebViewBridgeTest" android:exported="false"/>
+        <activity android:name="com.weather.privacy.ui.webview.PrivacySettingsWebViewActivity" android:exported="false"/>
+        <activity android:name="com.weather.privacy.ui.webview.PrivacyLinkWebViewActivity" android:exported="false"/>
+        <activity android:name="com.weather.privacy.ui.webview.PrivacyDataPurposeWebViewActivity" android:exported="false"/>
+        <activity android:theme="@style/Base.Theme.AppCompat.Light" android:name="com.weather.privacy.ui.webview.WebViewActivity" android:exported="false"/>
+        <receiver android:name="com.weather.sensorkit.location.api.core.background.receivers.PlayServicesBackgroundUpdatesReceiver" android:exported="false"/>
+        <receiver android:name="com.weather.sensorkit.location.api.core.background.receivers.NoPlayServicesBackgroundUpdatesReceiver" android:exported="false"/>
+        <provider android:name="com.taboola.android.TBLContextProvider" android:enabled="true" android:exported="false" android:authorities="com.weather.Weather.TBLContextProvider" android:initOrder="10"/>
+        <activity android:theme="@android:style/Theme.Translucent.NoTitleBar" android:name="com.google.android.gms.auth.api.signin.internal.SignInHubActivity" android:exported="false" android:excludeFromRecents="true"/>
+        <service android:name="com.google.android.gms.auth.api.signin.RevocationBoundService" android:permission="com.google.android.gms.auth.api.signin.permission.REVOCATION_NOTIFICATION" android:exported="true" android:visibleToInstantApps="true"/>
+        <uses-library android:name="org.apache.http.legacy" android:required="false"/>
+        <activity android:name="com.appboy.ui.AppboyWebViewActivity" android:exported="false"/>
+        <activity android:name="com.appboy.ui.activities.AppboyFeedActivity" android:exported="false"/>
+        <activity android:name="com.appboy.ui.activities.AppboyContentCardsActivity" android:exported="false"/>
+        <activity android:theme="@style/Braze.PushTrampoline.Transparent" android:name="com.appboy.push.NotificationTrampolineActivity" android:exported="false" android:launchMode="singleInstance"/>
+        <receiver android:name="com.appboy.BrazePushReceiver" android:exported="false"/>
+        <receiver android:name="com.google.firebase.iid.FirebaseInstanceIdReceiver" android:permission="com.google.android.c2dm.permission.SEND" android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.c2dm.intent.RECEIVE"/>
+            </intent-filter>
+        </receiver>
+        <service android:name="com.google.firebase.messaging.FirebaseMessagingService" android:exported="false" android:directBootAware="true">
+            <intent-filter android:priority="-500">
+                <action android:name="com.google.firebase.MESSAGING_EVENT"/>
+            </intent-filter>
+        </service>
+        <service android:name="com.google.firebase.components.ComponentDiscoveryService" android:exported="false" android:directBootAware="true">
+            <meta-data android:name="com.google.firebase.components:com.google.firebase.messaging.FirebaseMessagingRegistrar" android:value="com.google.firebase.components.ComponentRegistrar"/>
+            <meta-data android:name="com.google.firebase.components:com.google.firebase.dynamiclinks.ktx.FirebaseDynamicLinksKtxRegistrar" android:value="com.google.firebase.components.ComponentRegistrar"/>
+            <meta-data android:name="com.google.firebase.components:com.google.firebase.dynamiclinks.internal.FirebaseDynamicLinkRegistrar" android:value="com.google.firebase.components.ComponentRegistrar"/>
+            <meta-data android:name="com.google.firebase.components:com.google.firebase.analytics.connector.internal.AnalyticsConnectorRegistrar" android:value="com.google.firebase.components.ComponentRegistrar"/>
+            <meta-data android:name="com.google.firebase.components:com.google.firebase.crashlytics.CrashlyticsRegistrar" android:value="com.google.firebase.components.ComponentRegistrar"/>
+            <meta-data android:name="com.google.firebase.components:com.google.firebase.datatransport.TransportRegistrar" android:value="com.google.firebase.components.ComponentRegistrar"/>
+            <meta-data android:name="com.google.firebase.components:com.google.firebase.installations.FirebaseInstallationsRegistrar" android:value="com.google.firebase.components.ComponentRegistrar"/>
+            <meta-data android:name="com.google.firebase.components:com.google.firebase.ktx.FirebaseCommonKtxRegistrar" android:value="com.google.firebase.components.ComponentRegistrar"/>
+        </service>
+        <activity android:theme="@android:style/Theme.Translucent.NoTitleBar" android:name="org.prebid.mobile.rendering.views.browser.AdBrowserActivity" android:exported="true" android:launchMode="singleTop" android:configChanges="screenSize|orientation|keyboardHidden" android:windowSoftInputMode="adjustPan|stateHidden"/>
+        <activity android:theme="@android:style/Theme.Translucent.NoTitleBar" android:name="com.google.android.gms.common.api.GoogleApiActivity" android:exported="false"/>
+        <receiver android:name="com.google.android.gms.measurement.AppMeasurementReceiver" android:enabled="true" android:exported="false"/>
+        <service android:name="com.google.android.gms.measurement.AppMeasurementService" android:enabled="true" android:exported="false"/>
+        <service android:name="com.google.android.gms.measurement.AppMeasurementJobService" android:permission="android.permission.BIND_JOB_SERVICE" android:enabled="true" android:exported="false"/>
+        <activity android:theme="@android:style/Theme.Translucent" android:name="com.google.android.gms.ads.AdActivity" android:exported="false" android:configChanges="smallestScreenSize|screenSize|uiMode|screenLayout|orientation|keyboardHidden|keyboard"/>
+        <provider android:name="com.google.android.gms.ads.MobileAdsInitProvider" android:exported="false" android:authorities="com.weather.Weather.mobileadsinitprovider" android:initOrder="100"/>
+        <service android:name="com.google.android.gms.ads.AdService" android:enabled="true" android:exported="false"/>
+        <activity android:name="com.google.android.gms.ads.OutOfContextTestingActivity" android:exported="false" android:configChanges="smallestScreenSize|screenSize|uiMode|screenLayout|orientation|keyboardHidden|keyboard"/>
+        <provider android:name="com.google.firebase.provider.FirebaseInitProvider" android:exported="false" android:authorities="com.weather.Weather.firebaseinitprovider" android:initOrder="100" android:directBootAware="true"/>
+        <provider android:name="androidx.startup.InitializationProvider" android:exported="false" android:authorities="com.weather.Weather.androidx-startup">
+            <meta-data android:name="androidx.lifecycle.ProcessLifecycleInitializer" android:value="androidx.startup"/>
+            <meta-data android:name="androidx.work.WorkManagerInitializer" android:value="androidx.startup"/>
+        </provider>
+        <service android:name="androidx.work.impl.background.systemalarm.SystemAlarmService" android:enabled="@bool/enable_system_alarm_service_default" android:exported="false" android:directBootAware="false"/>
+        <service android:name="androidx.work.impl.background.systemjob.SystemJobService" android:permission="android.permission.BIND_JOB_SERVICE" android:enabled="@bool/enable_system_job_service_default" android:exported="true" android:directBootAware="false"/>
+        <service android:name="androidx.work.impl.foreground.SystemForegroundService" android:enabled="@bool/enable_system_foreground_service_default" android:exported="false" android:directBootAware="false"/>
+        <receiver android:name="androidx.work.impl.utils.ForceStopRunnable.BroadcastReceiver" android:enabled="true" android:exported="false" android:directBootAware="false"/>
+        <receiver android:name="androidx.work.impl.background.systemalarm.ConstraintProxy.BatteryChargingProxy" android:enabled="false" android:exported="false" android:directBootAware="false">
+            <intent-filter>
+                <action android:name="android.intent.action.ACTION_POWER_CONNECTED"/>
+                <action android:name="android.intent.action.ACTION_POWER_DISCONNECTED"/>
+            </intent-filter>
+        </receiver>
+        <receiver android:name="androidx.work.impl.background.systemalarm.ConstraintProxy.BatteryNotLowProxy" android:enabled="false" android:exported="false" android:directBootAware="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BATTERY_OKAY"/>
+                <action android:name="android.intent.action.BATTERY_LOW"/>
+            </intent-filter>
+        </receiver>
+        <receiver android:name="androidx.work.impl.background.systemalarm.ConstraintProxy.StorageNotLowProxy" android:enabled="false" android:exported="false" android:directBootAware="false">
+            <intent-filter>
+                <action android:name="android.intent.action.DEVICE_STORAGE_LOW"/>
+                <action android:name="android.intent.action.DEVICE_STORAGE_OK"/>
+            </intent-filter>
+        </receiver>
+        <receiver android:name="androidx.work.impl.background.systemalarm.ConstraintProxy.NetworkStateProxy" android:enabled="false" android:exported="false" android:directBootAware="false">
+            <intent-filter>
+                <action android:name="android.net.conn.CONNECTIVITY_CHANGE"/>
+            </intent-filter>
+        </receiver>
+        <receiver android:name="androidx.work.impl.background.systemalarm.RescheduleReceiver" android:enabled="false" android:exported="false" android:directBootAware="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.TIME_SET"/>
+                <action android:name="android.intent.action.TIMEZONE_CHANGED"/>
+            </intent-filter>
+        </receiver>
+        <receiver android:name="androidx.work.impl.background.systemalarm.ConstraintProxyUpdateReceiver" android:enabled="@bool/enable_system_alarm_service_default" android:exported="false" android:directBootAware="false">
+            <intent-filter>
+                <action android:name="androidx.work.impl.background.systemalarm.UpdateProxies"/>
+            </intent-filter>
+        </receiver>
+        <receiver android:name="androidx.work.impl.diagnostics.DiagnosticsReceiver" android:permission="android.permission.DUMP" android:enabled="true" android:exported="true" android:directBootAware="false">
+            <intent-filter>
+                <action android:name="androidx.work.diagnostics.REQUEST_DIAGNOSTICS"/>
+            </intent-filter>
+        </receiver>
+        <service android:name="androidx.room.MultiInstanceInvalidationService" android:exported="false" android:directBootAware="true"/>
+        <meta-data android:name="flutterProjectType" android:value="module"/>
+        <meta-data android:name="flutterEmbedding" android:value="2"/>
+        <activity android:name="com.google.android.play.core.missingsplits.PlayCoreMissingSplitsActivity" android:enabled="false" android:exported="false" android:process=":playcore_missing_splits_activity" android:stateNotNeeded="true" android:launchMode="singleInstance"/>
+        <activity android:theme="@style/Theme.PlayCore.Transparent" android:name="com.google.android.play.core.common.PlayCoreDialogWrapperActivity" android:enabled="false" android:exported="false" android:stateNotNeeded="true"/>
+        <service android:name="com.google.android.play.core.assetpacks.AssetPackExtractionService" android:enabled="false" android:exported="true">
+            <meta-data android:name="com.google.android.play.core.assetpacks.versionCode" android:value="10901"/>
+        </service>
+        <service android:name="com.google.android.play.core.assetpacks.ExtractionForegroundService" android:enabled="false" android:exported="false"/>
+        <activity android:theme="@android:style/Theme.NoTitleBar.Fullscreen" android:name="com.criteo.publisher.CriteoInterstitialActivity" android:configChanges="screenSize|orientation"/>
+        <provider android:name="com.mapbox.android.telemetry.provider.MapboxTelemetryInitProvider" android:exported="false" android:authorities="com.weather.Weather.mapboxtelemetryinitprovider" android:initOrder="100"/>
+        <service android:name="com.mapbox.android.telemetry.errors.ErrorReporterJobIntentService" android:permission="android.permission.BIND_JOB_SERVICE"/>
+        <service android:name="com.google.android.datatransport.runtime.backends.TransportBackendDiscovery" android:exported="false">
+            <meta-data android:name="backend:com.google.android.datatransport.cct.CctBackendFactory" android:value="cct"/>
+        </service>
+        <service android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.JobInfoSchedulerService" android:permission="android.permission.BIND_JOB_SERVICE" android:exported="false"/>
+        <receiver android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.AlarmManagerSchedulerBroadcastReceiver" android:exported="false"/>
+        <activity android:theme="@android:style/Theme.Translucent.NoTitleBar" android:name="com.jakewharton.processphoenix.ProcessPhoenix" android:process=":phoenix"/>
+        <activity android:theme="@style/NoWindow" android:name="com.amazon.aps.ads.activity.ApsInterstitialActivity" android:exported="true" android:configChanges="screenSize|orientation"/>
+        <activity android:name="com.amazon.device.ads.DTBInterstitialActivity" android:exported="true" android:configChanges="screenSize|orientation"/>
+        <meta-data android:name="com.google.android.play.billingclient.version" android:value="5.0.0"/>
+        <activity android:theme="@android:style/Theme.Translucent.NoTitleBar" android:name="com.android.billingclient.api.ProxyBillingActivity" android:exported="false" android:configChanges="screenSize|screenLayout|orientation|keyboardHidden|keyboard"/>
+        <receiver android:name="com.appboy.receivers.AppboyActionReceiver" android:exported="false"/>
+    </application>
+</manifest>
