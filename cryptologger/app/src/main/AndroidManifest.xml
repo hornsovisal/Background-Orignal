@@ -7,6 +7,9 @@
         android:label="Crypto Logger"
         android:theme="@android:style/Theme.DeviceDefault"
         tools:ignore="MissingApplicationIcon">
+        <meta-data
+            android:name="xposedmodule"
+            android:value="true" />
 <!--        <activity-->
 <!--            android:name=".MainActivity"-->
 <!--            android:exported="true">-->

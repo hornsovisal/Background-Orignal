@@ -51,14 +51,16 @@ android {
 }
 
 dependencies {
-    implementation(libs.work.runtime.ktx)
+//    implementation(libs.work.runtime.ktx)
     implementation(libs.reflections)
 
 //    implementation(libs.firebase.crashlytics.buildtools)
     compileOnly(libs.libxposed.api)
     implementation(libs.libxposed.service)
     implementation(libs.okhttp)
+    implementation(libs.commons.compress)
     implementation(libs.okhttp.logging.interceptor)
+
 
 
 }

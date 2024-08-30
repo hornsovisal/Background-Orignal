@@ -3,6 +3,7 @@
 package ca.concordia.madiba.cryptologger
 
 import android.annotation.SuppressLint
+import android.app.ActivityManager
 import android.app.AlarmManager
 import android.app.Notification
 import android.app.PendingIntent
@@ -10,16 +11,20 @@ import android.app.Service
 import android.app.job.JobInfo
 import android.app.job.JobParameters
 import android.app.job.JobScheduler
+import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
-import android.content.ServiceConnection
+import android.content.IntentFilter
 import android.location.Location
 import android.os.Handler
 import android.os.Looper
+import android.os.Message
 import android.os.StrictMode
 import android.os.StrictMode.ThreadPolicy
 import android.os.WorkSource
+import android.provider.Settings.Secure
 import dalvik.system.BaseDexClassLoader
+import dalvik.system.InMemoryDexClassLoader
 import io.github.libxposed.api.XposedInterface
 import io.github.libxposed.api.XposedInterface.AfterHookCallback
 import io.github.libxposed.api.XposedInterface.BeforeHookCallback
@@ -35,20 +40,33 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 import java.net.Proxy
+import java.net.Socket
 import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.security.AlgorithmParameters
 import java.security.Key
+import java.security.MessageDigest
 import java.security.SecureRandom
 import java.security.cert.Certificate
 import java.security.spec.AlgorithmParameterSpec
 import java.util.Base64
 import java.util.Enumeration
 import java.util.UUID
+import java.util.concurrent.AbstractExecutorService
+import java.util.concurrent.Callable
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executor
+import java.util.concurrent.ForkJoinPool
+import java.util.concurrent.FutureTask
+import java.util.concurrent.ScheduledThreadPoolExecutor
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.zip.Adler32
+import java.util.zip.GZIPOutputStream
 import javax.crypto.Cipher
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLSocketFactory
@@ -56,20 +74,23 @@ import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
 import kotlin.random.Random
 
-
 private lateinit var module: ModuleMain
 private lateinit var packageName: String
-
+private lateinit var globalClassLoader: ClassLoader
 
 class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule(base, param) {
     private val addedDexFiles: MutableList<String> = mutableListOf()
     private val latitude: Double = 45.4956206
     private val longitude: Double = -73.580828
+    private val randmap: MutableMap<String, String> = mutableMapOf()
+    private val registeredReceivers: MutableSet<String> = mutableSetOf()
 
     //    private val endpoint = "https://172.30.143.86:8888/endpoint"
     private lateinit var webSocket: WebSocket
-    private val webSocketUrl = "wss://192.168.70.100:8888/endpoint"
-
+    private val webSocketUrl = "wss://172.30.143.86:8888/endpoint"
+//    private val webSocketUrl = "wss://172.30.143.74:8888/endpoint"
+//    private val webSocketUrl = "wss://192.168.70.100:8888/endpoint"
+    private var isDeviceIdSent = false
     //val url = URL("https://192.168.70.100:8888/endpoint")
 
     init {
@@ -112,6 +133,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
 //        val client = OkHttpClient
         connectWebSocket(client)
     }
+
     private fun connectWebSocket(client: OkHttpClient) {
         val request = Request.Builder().url(webSocketUrl).build()
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
@@ -148,20 +170,23 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
     }
 
     fun sendDataToServer(
+        objName: String,
         className: String,
         methodName: String,
         data: String,
         hashcode: Int,
         stackTrace: String
     ) {
+        val a = ActivityManager.RunningAppProcessInfo()
+        ActivityManager.getMyMemoryState(a)
 
         val policy = ThreadPolicy.Builder().permitAll().build()
         StrictMode.setThreadPolicy(policy)
 
         val completedData = if (data.isNotEmpty()) {
-            """{"class_name":"$className","method_name":"$methodName", "hashcode": $hashcode, $data,"pid":${android.os.Process.myPid()},"tid":${android.os.Process.myTid()},"uid":${android.os.Process.myUid()},"package_name":"$packageName","ts":${System.currentTimeMillis()}, "stack_trace": "$stackTrace"}"""
+            """{"$objName":{"class_name":"$className","method_name":"$methodName", "hashcode": $hashcode, $data,"pid":${android.os.Process.myPid()},"tid":${android.os.Process.myTid()},"jtid":${Thread.currentThread().id},"uid":${android.os.Process.myUid()},"package_name":"$packageName","ts":${System.currentTimeMillis()}, "importance":${a.importance}, "stack_trace": "$stackTrace"}}"""
         } else {
-            """{"class_name":"$className","method_name":"$methodName", "hashcode": $hashcode, "pid":${android.os.Process.myPid()},"tid":${android.os.Process.myTid()},"uid":${android.os.Process.myUid()},"package_name":"$packageName","ts":${System.currentTimeMillis()}, "stack_trace": "$stackTrace"}"""
+            """{"$objName":{"class_name":"$className","method_name":"$methodName", "hashcode": $hashcode, "pid":${android.os.Process.myPid()},"tid":${android.os.Process.myTid()},"jtid":${Thread.currentThread().id},"uid":${android.os.Process.myUid()},"package_name":"$packageName","ts":${System.currentTimeMillis()}, "importance":${a.importance}, "stack_trace": "$stackTrace"}}"""
         }
 //        module.log(completedData)
 //        return
@@ -172,75 +197,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
         }
     }
 
-    //    fun sendDataToServer(
-//        className: String,
-//        methodName: String,
-//        data: String,
-//        hashcode: Int,
-//        stackTrace: String
-//    ) {
-//
-//        val policy = ThreadPolicy.Builder().permitAll().build()
-//        StrictMode.setThreadPolicy(policy)
-//
-//
-//        val completedData =
-//            """{"class_name":"$className","method_name":"$methodName", "hashcode": $hashcode, $data,"pid":${android.os.Process.myPid()},"tid":${android.os.Process.myTid()},"uid":${android.os.Process.myUid()},"package_name":"$packageName","ts":${System.currentTimeMillis()}, "stackTrace": "$stackTrace"}"""
-////        module.log(completedData)
-////        return
-//        try {
-//            val trustAllCerts = arrayOf<TrustManager>(@SuppressLint("CustomX509TrustManager")
-//            object : X509TrustManager {
-//                override fun getAcceptedIssuers(): Array<X509Certificate>? = null
-//                override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) = Unit
-//                override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) = Unit
-//            })
-//            val sslContext = SSLContext.getInstance("TLSv1.3")
-//            sslContext.init(null, trustAllCerts, SecureRandom())
-//
-//            val url = URL(endpoint)
-//            val connection = url.openConnection() as HttpURLConnection
-//            if (connection is HttpsURLConnection) {
-//                connection.sslSocketFactory = sslContext.socketFactory
-//                connection.hostnameVerifier = HostnameVerifier { _, _ -> true }
-//            }
-//
-//            // Set connection properties
-//            connection.setRequestProperty("Connection", "close")
-//            connection.requestMethod = "POST"
-//            connection.doOutput = true
-////            connection.setRequestProperty("Content-Type", "application/json")
-////            connection.setRequestProperty("Package-Name", packageName)
-////            connection.setRequestProperty("Process-ID", android.os.Process.myPid().toString())
-//            connection.setRequestProperty("User-ID", android.os.Process.myUid().toString())
-////            connection.setRequestProperty("TS", System.currentTimeMillis().toString())
-////            val out = BufferedOutputStream(connection.outputStream)
-////            val writer = OutputStreamWriter(out, "UTF-8")
-////            writer.write(completedData)
-////            writer.flush()
-////            writer.close()
-//            connection.outputStream.use { outputStream ->
-//                OutputStreamWriter(outputStream, "UTF-8").use { writer ->
-//                    writer.write(completedData)
-//                    writer.flush()
-//                }
-//            }
-//
-//            val responseCode = connection.responseCode
-//            if (responseCode == HttpURLConnection.HTTP_OK) {
-//                // Read response if needed
-//                val inputStream = connection.inputStream
-//                // Process response
-//            } else {
-//                // Handle error
-//            }
-//
-//            // Close the connection
-//            connection.disconnect()
-//        } catch (e: Throwable) {
-//            module.log("ayyyyyyyyyyyyyyyyyyyyyyyy",e)
-//        }
-//    }
+
     //start of crypto
     @XposedHooker
     class DoFinalHook(private val magic: Int) : XposedInterface.Hooker {
@@ -261,6 +218,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 val out =
                     """"ret":"$ret", "algorithm": "${(callback.thisObject as Cipher).algorithm}""""
                 module.sendDataToServer(
+                    "DoFinal",
                     callback.thisObject!!.javaClass.name,
                     "do_final",
                     out,
@@ -279,7 +237,6 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
             @JvmStatic
             @BeforeInvocation
             fun beforeInvocation(callback: BeforeHookCallback): DoFinalByteHook {
-
                 return DoFinalByteHook(Random.nextInt()).apply {
                     this.input = callback.args[0]
                 }
@@ -296,6 +253,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                     Base64.getEncoder().encodeToString(context.input as ByteArray)
                 }", "ret":"$ret", "algorithm": "${(callback.thisObject as Cipher).algorithm}""""
                 module.sendDataToServer(
+                    "DoFinalByte",
                     callback.thisObject!!.javaClass.name,
                     "do_final_byte",
                     out,
@@ -329,6 +287,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                     Base64.getEncoder().encodeToString(context.output as ByteArray)
                 }", "arg_output_offset": ${context.outputOffset as Int},"ret":${callback.result as Int}, "algorithm": "${(callback.thisObject as Cipher).algorithm}""""
                 module.sendDataToServer(
+                    "DoFinalByteInt",
                     callback.thisObject!!.javaClass.name,
                     "do_final_byte_int",
                     out,
@@ -367,6 +326,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                     Base64.getEncoder().encodeToString(context.input as ByteArray)
                 }", "arg_input_offset": ${context.inputOffset as Int}, "arg_input_len": ${context.inputLen as Int},"ret":"$ret", "algorithm": "${(callback.thisObject as Cipher).algorithm}""""
                 module.sendDataToServer(
+                    "DoFinalByteIntInt",
                     callback.thisObject!!.javaClass.name,
                     "do_final_byte_int_int",
                     out,
@@ -405,6 +365,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                     Base64.getEncoder().encodeToString(context.input as ByteArray)
                 }","ret":${callback.result as Int}, "algorithm": "${(callback.thisObject as Cipher).algorithm}""""
                 module.sendDataToServer(
+                    "DoFinalByteIntIntByte",
                     callback.thisObject!!.javaClass.name,
                     "do_final_byte_int_int_byte",
                     out,
@@ -448,6 +409,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                     Base64.getEncoder().encodeToString(context.input as ByteArray)
                 }", "arg_output_offset": ${context.outputOffset as Int},"ret":${callback.result as Int}, "algorithm": "${(callback.thisObject as Cipher).algorithm}""""
                 module.sendDataToServer(
+                    "DoFinalByteIntIntByteInt",
                     callback.thisObject!!.javaClass.name,
                     "do_final_byte_int_int_byte_int",
                     out,
@@ -487,6 +449,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                     Base64.getEncoder().encodeToString(output)
                 }","ret":${callback.result as Int}, "algorithm": "${(callback.thisObject as Cipher).algorithm}""""
                 module.sendDataToServer(
+                    "DoFinalByteBufferByteBuffer",
                     callback.thisObject!!.javaClass.name,
                     "do_final_byte_buffer_byte_buffer",
                     out,
@@ -515,10 +478,12 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
             @JvmStatic
             @AfterInvocation
             fun afterInvocation(callback: AfterHookCallback, context: InitIntCertificateHook) {
+//                "iv":"${Base64.getEncoder().encodeToString((callback.thisObject as Cipher).iv)}",
                 val out = """"arg_opcode": ${context.opcode as Int}, "arg_certificate": "${
                     Base64.getEncoder().encodeToString((context.certificate as Certificate).encoded)
                 }", "algorithm": "${(callback.thisObject as Cipher).algorithm}""""
                 module.sendDataToServer(
+                    "InitIntCertificate",
                     callback.thisObject!!.javaClass.name,
                     "init_int_certificate",
                     out,
@@ -555,6 +520,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                     Base64.getEncoder().encodeToString((context.certificate as Certificate).encoded)
                 }", "algorithm": "${(callback.thisObject as Cipher).algorithm}""""
                 module.sendDataToServer(
+                    "InitIntCertificate",
                     callback.thisObject!!.javaClass.name,
                     "init_int_certificate_secure_random",
                     out,
@@ -590,6 +556,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 val out =
                     """"arg_opcode": ${context.opcode as Int}, "arg_key": "$key", "algorithm": "${(callback.thisObject as Cipher).algorithm}""""
                 module.sendDataToServer(
+                    "InitIntKey",
                     callback.thisObject!!.javaClass.name,
                     "init_int_key",
                     out,
@@ -629,6 +596,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 val out =
                     """"arg_opcode": ${context.opcode as Int}, "arg_key": "$key", "algorithm": "${(callback.thisObject as Cipher).algorithm}""""
                 module.sendDataToServer(
+                    "InitIntKey",
                     callback.thisObject!!.javaClass.name,
                     "init_int_key_algorithm_parameters",
                     out,
@@ -668,6 +636,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 val out =
                     """"arg_opcode": ${context.opcode as Int}, "arg_key": "$key", "algorithm": "${(callback.thisObject as Cipher).algorithm}""""
                 module.sendDataToServer(
+                    "InitIntKey",
                     callback.thisObject!!.javaClass.name,
                     "init_int_key_algorithm_parameter_spec",
                     out,
@@ -710,6 +679,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 val out =
                     """"arg_opcode": ${context.opcode as Int}, "arg_key": "$key", "algorithm": "${(callback.thisObject as Cipher).algorithm}""""
                 module.sendDataToServer(
+                    "InitIntKey",
                     callback.thisObject!!.javaClass.name,
                     "init_int_key_algorithm_parameter_spec_secure_random",
                     out,
@@ -752,6 +722,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 val out =
                     """"arg_opcode": ${context.opcode as Int}, "arg_key": "$key", "algorithm": "${(callback.thisObject as Cipher).algorithm}""""
                 module.sendDataToServer(
+                    "InitIntKey",
                     callback.thisObject!!.javaClass.name,
                     "init_int_key_algorithm_parameters_secure_random",
                     out,
@@ -787,6 +758,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 val out =
                     """"arg_opcode": ${context.opcode as Int}, "arg_key": "$key", "algorithm": "${(callback.thisObject as Cipher).algorithm}""""
                 module.sendDataToServer(
+                    "InitIntKey",
                     callback.thisObject!!.javaClass.name,
                     "init_int_key_secure_random",
                     out,
@@ -822,6 +794,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                     Base64.getEncoder().encodeToString(context.input as ByteArray)
                 }", "ret":"$ret", "algorithm": "${(callback.thisObject as Cipher).algorithm}""""
                 module.sendDataToServer(
+                    "UpdateByte",
                     callback.thisObject!!.javaClass.name,
                     "update_byte",
                     out,
@@ -858,8 +831,9 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 }
                 val out = """"arg_input": "${
                     Base64.getEncoder().encodeToString(context.input as ByteArray)
-                }", "arg_input_offset": ${context.input as Int}, "arg_input_len": ${context.inputLen as Int},"ret":"$ret", "algorithm": "${(callback.thisObject as Cipher).algorithm}""""
+                }", "arg_input_offset": ${context.inputOffset as Int}, "arg_input_len": ${context.inputLen as Int},"ret":"$ret", "algorithm": "${(callback.thisObject as Cipher).algorithm}""""
                 module.sendDataToServer(
+                    "UpdateByteIntInt",
                     callback.thisObject!!.javaClass.name,
                     "update_byte_int_int",
                     out,
@@ -898,6 +872,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                     Base64.getEncoder().encodeToString(context.input as ByteArray)
                 }","ret":${callback.result as Int}, "algorithm": "${(callback.thisObject as Cipher).algorithm}""""
                 module.sendDataToServer(
+                    "UpdateByteIntIntByte",
                     callback.thisObject!!.javaClass.name,
                     "update_byte_int_int_byte",
                     out,
@@ -938,6 +913,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                     Base64.getEncoder().encodeToString(context.input as ByteArray)
                 }", "arg_output_offset": ${context.outputOffset as Int},"ret":${callback.result as Int}, "algorithm": "${(callback.thisObject as Cipher).algorithm}""""
                 module.sendDataToServer(
+                    "UpdateByteIntIntByteInt",
                     callback.thisObject!!.javaClass.name,
                     "update_byte_int_int_byte_int",
                     out,
@@ -977,6 +953,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                     Base64.getEncoder().encodeToString(output)
                 }","ret":${callback.result as Int}, "algorithm": "${(callback.thisObject as Cipher).algorithm}""""
                 module.sendDataToServer(
+                    "UpdateByteBufferByteBuffer",
                     callback.thisObject!!.javaClass.name,
                     "update_byte_buffer_byte_buffer",
                     out,
@@ -1012,6 +989,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                     Base64.getEncoder().encodeToString(context.input as ByteArray)
                 }", "ret":"$ret", "algorithm": "${(callback.thisObject as Cipher).algorithm}""""
                 module.sendDataToServer(
+                    "UpdateAADByte",
                     callback.thisObject!!.javaClass.name,
                     "update_aad_byte",
                     out,
@@ -1048,8 +1026,9 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 }
                 val out = """"arg_input": "${
                     Base64.getEncoder().encodeToString(context.input as ByteArray)
-                }", "arg_input_offset": ${context.input as Int}, "arg_input_len": ${context.inputLen as Int},"ret":"$ret", "algorithm": "${(callback.thisObject as Cipher).algorithm}""""
+                }", "arg_input_offset": ${context.inputOffset as Int}, "arg_input_len": ${context.inputLen as Int},"ret":"$ret", "algorithm": "${(callback.thisObject as Cipher).algorithm}""""
                 module.sendDataToServer(
+                    "UpdateAADByteIntInt",
                     callback.thisObject!!.javaClass.name,
                     "update_aad_byte_int_int",
                     out,
@@ -1081,6 +1060,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                     Base64.getEncoder().encodeToString(src)
                 }","ret":${callback.result as Int}, "algorithm": "${(callback.thisObject as Cipher).algorithm}""""
                 module.sendDataToServer(
+                    "UpdateAADByteBuffer",
                     callback.thisObject!!.javaClass.name,
                     "update_aad_byte_buffer",
                     out,
@@ -1145,7 +1125,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
             @JvmStatic
             @AfterInvocation
             fun afterInvocation(callback: AfterHookCallback, context: DexLoaderHook) {
-                module.scanDexFile(context.path, callback.javaClass.classLoader!!)
+                module.scanDexFile(context.path, globalClassLoader)
             }
         }
     }
@@ -1165,6 +1145,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 }
                 val out = """"id":$firstArg,"type":$type"""
                 module.sendDataToServer(
+                    "StartForeground",
                     callback.thisObject!!.javaClass.name,
                     callback.member.name,
                     out,
@@ -1179,39 +1160,84 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
 
     @XposedHooker
     class OnStartCommandHook(private val magic: Int) : XposedInterface.Hooker {
+        private lateinit var out: Any
+
         companion object {
             @JvmStatic
             @BeforeInvocation
             fun beforeInvocation(callback: BeforeHookCallback): OnStartCommandHook {
 //                module.log("called service implementation: ${this::class.java.name}")
                 val intent = try {
-                 callback.args[0] as Intent
-                } catch (_:Throwable){
+                    callback.args[0] as Intent
+                } catch (_: Throwable) {
                     null
                 }
                 val action = intent?.action ?: ""
                 val component = intent?.component?.shortClassName ?: ""
-                val data = intent?.dataString ?:""
+                val data = intent?.dataString ?: ""
 
                 val flags = callback.args[1] as Int
                 val startId = callback.args[2] as Int
+                var extras = ""
+                intent?.extras?.let {
+                    for (k in it.keySet()) {
+                        try {
+                            if (extras.isNotEmpty()) {
+                                extras += ","
+                            }
+                            val v = it.getSerializable(k,String::class.java)?.let{ v -> Base64.getEncoder().encodeToString(v.toByteArray())}?:""
+                            extras += """["$k","$v"]"""
+                        } catch (_: Throwable) {
+
+                        }
+                    }
+                }
+                extras = "[$extras]"
+
                 val out =
-                    """"action":"$action","component":"$component","data":"$data","flags":$flags,"start_id":$startId"""
+                    """"action":"$action","component":"$component","data":"$data","extras":$extras,"flags":$flags,"start_id":$startId"""
+
+                Thread {
+                    try {
+                        module.sendDataToServer(
+                            "OnStartCommand",
+                            callback.thisObject!!.javaClass.name,
+                            callback.member.name,
+                            out,
+                            callback.thisObject?.hashCode() ?: 0,
+                            b64st()
+                        )
+                        OnStartCommandHook(Random.nextInt())
+                    } catch (_: Throwable) {
+
+                    }
+
+                }.start()
+
+                return OnStartCommandHook(Random.nextInt()).apply {
+                    this.out = out
+                }
+            }
+
+            @JvmStatic
+            @AfterInvocation
+            fun afterInvocation(callback: AfterHookCallback, context: OnStartCommandHook) {
                 module.sendDataToServer(
+                    "OnStartCommand",
                     callback.thisObject!!.javaClass.name,
                     callback.member.name,
-                    out,
+                    context.out as String,
                     callback.thisObject?.hashCode() ?: 0,
                     b64st()
                 )
-
-                return OnStartCommandHook(Random.nextInt())
             }
         }
     }
 
     @XposedHooker
     class OnBindHook(private val magic: Int) : XposedInterface.Hooker {
+        private lateinit var out: Any
+
         companion object {
             @JvmStatic
             @BeforeInvocation
@@ -1219,20 +1245,61 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 val intent = callback.args[0] as Intent
                 val action = intent.action ?: ""
                 val component = intent.component?.shortClassName ?: ""
-                val data = intent.dataString ?:""
-//                if (data == "null") {
-//                    data = ""
-//                }
-                val out = """"action":"$action","component":"$component","data":"$data""""
+                val data = intent.dataString ?: ""
+                var extras = ""
+                intent.extras?.let {
+                    for (k in it.keySet()) {
+                        try {
+                            if (extras.isNotEmpty()) {
+                                extras += ","
+                            }
+                            val v = it.getSerializable(k,String::class.java)?.let{ v -> Base64.getEncoder().encodeToString(v.toByteArray())}?:""
+                            extras += """["$k","$v"]"""
+                        } catch (_: Throwable) {
+
+                        }
+                    }
+                }
+                extras = "[$extras]"
+
+                val out =
+                    """"action":"$action","component":"$component","data":"$data","extras":$extras"""
+
+
+
+                Thread {
+                    try {
+                        module.sendDataToServer(
+                            "OnBind",
+                            callback.thisObject!!.javaClass.name,
+                            callback.member.name,
+                            out,
+                            callback.thisObject?.hashCode() ?: 0,
+                            b64st()
+                        )
+                        OnBindHook(Random.nextInt())
+                    } catch (_: Throwable) {
+
+                    }
+
+                }.start()
+
+                return OnBindHook(Random.nextInt()).apply {
+                    this.out = out
+                }
+            }
+
+            @JvmStatic
+            @AfterInvocation
+            fun afterInvocation(callback: AfterHookCallback, context: OnBindHook) {
                 module.sendDataToServer(
+                    "OnBind",
                     callback.thisObject!!.javaClass.name,
                     callback.member.name,
-                    out,
+                    context.out as String,
                     callback.thisObject?.hashCode() ?: 0,
                     b64st()
                 )
-
-                return OnBindHook(Random.nextInt())
             }
         }
     }
@@ -1261,13 +1328,14 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 val out =
                     """"type":$type, "trigger_at_millis":$triggerAtMillis, "window_millis":$windowMillis,"interval_millis":$intervalMillis, "flags":$flags, "operation_hashcode":$operationHashcode, "listener_class_name":"$listenerClassName", "listener_tag":"$listenerTag", "alarm_clock_intent_hash_code":$alarmClockIntentHashCode, "alarm_clock_get_trigger_time":$alarmClockGetTriggerTime"""
                 module.sendDataToServer(
+                    "SetImpl",
                     callback.thisObject!!.javaClass.name,
                     callback.member.name,
                     out,
                     callback.thisObject?.hashCode() ?: 0,
                     b64st()
                 )
-
+                callback.args[1] = System.currentTimeMillis() + 2000
                 return SetImplHook(Random.nextInt())
             }
         }
@@ -1287,6 +1355,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 }
                 val out = """"creator":"$creator""""
                 module.sendDataToServer(
+                    "SetAlarmClock",
                     callback.thisObject!!.javaClass.name,
                     callback.member.name,
                     out,
@@ -1306,37 +1375,62 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
         private lateinit var data: Any
         private lateinit var requestCode: Any
         private lateinit var flags: Any
+        private lateinit var context: Any
+        private lateinit var intent: Any
 
 
         companion object {
             @JvmStatic
             @BeforeInvocation
             fun beforeInvocation(callback: BeforeHookCallback): PendingIntentGetHook {
-                val intent = callback.args[2] as Intent
+//                val intent = callback.args[2] as Intent
                 return PendingIntentGetHook(Random.nextInt()).apply {
-                    this.action = intent.action ?: ""
-                    this.component = intent.component?.shortClassName ?: ""
-                    this.data = intent.dataString ?: ""
-//                    if (this.data == "null") {
-//                        this.data = ""
-//                    }
                     this.requestCode = callback.args[1] as Int
                     this.flags = callback.args[3] as Int
+                    this.context = callback.args[0] as Context
+                    this.intent = callback.args[2] as Intent
+
                 }
             }
 
             @JvmStatic
             @AfterInvocation
             fun afterInvocation(callback: AfterHookCallback, context: PendingIntentGetHook) {
+                val intent = context.intent as Intent
+                val action = intent.action ?: ""
+                val component = intent.component?.shortClassName ?: ""
+                val data = intent.dataString ?: ""
+                var extras = ""
+                intent.extras?.let {
+                    for (k in it.keySet()) {
+                        try {
+                            if (extras.isNotEmpty()) {
+                                extras += ","
+                            }
+                            val v = it.getSerializable(k,String::class.java)?.let{ v -> Base64.getEncoder().encodeToString(v.toByteArray())}?:""
+                            extras += """["$k","$v"]"""
+                        } catch (_: Throwable) {
+
+                        }
+                    }
+                }
+                extras = "[$extras]"
+
                 val out =
-                    """"request_code":${context.requestCode},"action":"${context.action}","component":"${context.component}","data":"${context.data}","flags":${context.flags}""" //
+                    """"request_code":${context.requestCode},"action":"$action","component":"$component","data":"$data","extras":$extras,"flags":${context.flags}""" //
                 module.sendDataToServer(
+                    "PendingIntentGet",
                     "android.app.PendingIntent",
                     callback.member.name,
                     out,
                     callback.result.hashCode(),
                     b64st()
                 )
+                try {
+                    (context.context as Context).sendBroadcast(intent, "")
+                } catch (_: Throwable) {
+                }
+
             }
         }
     }
@@ -1384,6 +1478,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 val out =
                     """"job_id": $jobId,"backoff_policy": $backoffPolicy,"clip_data": "$clipData","clip_grant_flags": $clipGrantFlags,"estimated_network_download_bytes": $estimatedNetworkDownloadBytes,"estimated_network_upload_bytes": $estimatedNetworkUploadBytes,"flex_millis": $flexMillis,"initial_backoff_millis": $initialBackoffMillis,"interval_millis": $intervalMillis,"max_execution_delay_millis": $maxExecutionDelayMillis,"min_latency_millis": $minLatencyMillis,"minimum_network_chunk_bytes": $minimumNetworkChunkBytes,"network_type": $networkType,"priority": $priority,"service": "$service","required_network_capabilities": [$requiredNetworkCapabilities],"required_network_transport_types": [$requiredNetworkTransportTypes],"trigger_content_max_delay": $triggerContentMaxDelay,"trigger_content_update_delay": $triggerContentUpdateDelay,"trigger_content_uris": "$triggerContentUris","is_expedited": $isExpedited,"is_important_while_foreground": $isImportantWhileForeground,"is_periodic": $isPeriodic,"is_persisted": $isPersisted,"is_prefetch": $isPrefetch,"is_require_battery_not_low": $isRequireBatteryNotLow,"is_require_charging": $isRequireCharging,"is_require_device_idle": $isRequireDeviceIdle,"is_require_storage_not_low": $isRequireStorageNotLow""".trimIndent()
                 module.sendDataToServer(
+                    "JobScheduler",
                     callback.thisObject!!.javaClass.name,
                     callback.member.name,
                     out,
@@ -1398,22 +1493,51 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
 
     @XposedHooker
     class OnStartJobHook(private val magic: Int) : XposedInterface.Hooker {
+        private lateinit var out: Any
+
         companion object {
             @JvmStatic
             @BeforeInvocation
             fun beforeInvocation(callback: BeforeHookCallback): OnStartJobHook {
                 val jobParameters = callback.args[0] as JobParameters
                 val jobId = jobParameters.jobId
-                val out = """"job_id":$jobId"""
+
+                val out = """"job_id":$jobId,"start_ts":${System.currentTimeMillis()}"""
+
+
+                Thread {
+                    try {
+                        module.sendDataToServer(
+                            "OnStartJob",
+                            callback.thisObject!!.javaClass.name,
+                            callback.member.name,
+                            out,
+                            callback.thisObject?.hashCode() ?: 0,
+                            b64st()
+                        )
+                        OnStartJobHook(Random.nextInt())
+                    } catch (_: Throwable) {
+
+                    }
+
+                }.start()
+
+                return OnStartJobHook(Random.nextInt()).apply {
+                    this.out = out
+                }
+            }
+
+            @JvmStatic
+            @AfterInvocation
+            fun afterInvocation(callback: AfterHookCallback, context: OnStartJobHook) {
                 module.sendDataToServer(
+                    "OnStartJob",
                     callback.thisObject!!.javaClass.name,
                     callback.member.name,
-                    out,
+                    context.out as String,
                     callback.thisObject?.hashCode() ?: 0,
                     b64st()
                 )
-
-                return OnStartJobHook(Random.nextInt())
             }
         }
     }
@@ -1431,6 +1555,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 val jobId = callback.args[1] as Int
                 val out = """"job_id":$jobId,"work_id":"$workId""""
                 module.sendDataToServer(
+                    "ScheduleInternal",
                     callback.thisObject!!.javaClass.name,
                     callback.member.name,
                     out,
@@ -1444,6 +1569,8 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
 
     @XposedHooker
     class DoWorkHook(private val magic: Int) : XposedInterface.Hooker {
+        private lateinit var out: Any
+
         companion object {
             @JvmStatic
             @BeforeInvocation
@@ -1469,15 +1596,40 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
 
 
                 val out = """"work_id":"$workId""""
+
+                Thread {
+                    try {
+                        module.sendDataToServer(
+                            "DoWork",
+                            callback.thisObject!!.javaClass.name,
+                            callback.member.name,
+                            out,
+                            callback.thisObject?.hashCode() ?: 0,
+                            b64st()
+                        )
+                        DoWorkHook(Random.nextInt())
+                    } catch (_: Throwable) {
+
+                    }
+
+                }.start()
+
+                return DoWorkHook(Random.nextInt()).apply {
+                    this.out = out
+                }
+            }
+
+            @JvmStatic
+            @AfterInvocation
+            fun afterInvocation(callback: AfterHookCallback, context: DoWorkHook) {
                 module.sendDataToServer(
+                    "DoWork",
                     callback.thisObject!!.javaClass.name,
                     callback.member.name,
-                    out,
+                    context.out as String,
                     callback.thisObject?.hashCode() ?: 0,
                     b64st()
                 )
-
-                return DoWorkHook(Random.nextInt())
             }
         }
     }
@@ -1491,6 +1643,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 val workId = callback.args[0] as UUID
                 val out = """"work_id":"$workId""""
                 module.sendDataToServer(
+                    "RequestWork",
                     callback.thisObject!!.javaClass.name,
                     callback.member.name,
                     out,
@@ -1505,6 +1658,8 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
 
     @XposedHooker
     class OnReceiveHook(private val magic: Int) : XposedInterface.Hooker {
+        private lateinit var out: Any
+
         companion object {
             @JvmStatic
             @BeforeInvocation
@@ -1513,19 +1668,58 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 val action = intent.action ?: ""
                 val component = intent.component?.shortClassName ?: ""
                 val data = intent.dataString ?: ""
-//                if (data == "null") {
-//                    data = ""
-//                }
-                val out = """"action":"$action","component":"$component","data":"$data""""
+                var extras = ""
+                intent.extras?.let {
+                    for (k in it.keySet()) {
+                        try {
+                            if (extras.isNotEmpty()) {
+                                extras += ","
+                            }
+                            val v = it.getSerializable(k,String::class.java)?.let{ v -> Base64.getEncoder().encodeToString(v.toByteArray())}?:""
+                            extras += """["$k","$v"]"""
+                        } catch (_: Throwable) {
+
+                        }
+                    }
+                }
+                extras = "[$extras]"
+
+                val out =
+                    """"action":"$action","component":"$component","data":"$data","extras":$extras,"start_ts":${System.currentTimeMillis()}"""
+                Thread {
+                    try {
+                        module.sendDataToServer(
+                            "OnReceiveHook",
+                            callback.thisObject!!.javaClass.name,
+                            callback.member.name,
+                            out,
+                            callback.thisObject?.hashCode() ?: 0,
+                            b64st()
+                        )
+                        OnReceiveHook(Random.nextInt())
+                    } catch (_: Throwable) {
+
+                    }
+
+                }.start()
+
+                return OnReceiveHook(Random.nextInt()).apply {
+                    this.out = out
+                }
+            }
+
+            @JvmStatic
+            @AfterInvocation
+            fun afterInvocation(callback: AfterHookCallback, context: OnReceiveHook) {
+
                 module.sendDataToServer(
+                    "OnReceiveHook",
                     callback.thisObject!!.javaClass.name,
                     callback.member.name,
-                    out,
+                    context.out as String,
                     callback.thisObject?.hashCode() ?: 0,
                     b64st()
                 )
-
-                return OnReceiveHook(Random.nextInt())
             }
         }
     }
@@ -1539,12 +1733,27 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 val intent = callback.args[0] as Intent
                 val action = intent.action ?: ""
                 val component = intent.component?.shortClassName ?: ""
-                val data = intent.dataString ?:""
-//                if (data == "null") {
-//                    data = ""
-//                }
-                val out = """"action":"$action","component":"$component","data":"$data""""
+                val data = intent.dataString ?: ""
+                var extras = ""
+                intent.extras?.let {
+                    for (k in it.keySet()) {
+                        try {
+                            if (extras.isNotEmpty()) {
+                                extras += ","
+                            }
+                            val v = it.getSerializable(k,String::class.java)?.let{ v -> Base64.getEncoder().encodeToString(v.toByteArray())}?:""
+                            extras += """["$k","$v"]"""
+                        } catch (_: Throwable) {
+
+                        }
+                    }
+                }
+                extras = "[$extras]"
+
+                val out =
+                    """"action":"$action","component":"$component","data":"$data","extras":$extras"""
                 module.sendDataToServer(
+                    "Intent",
                     callback.thisObject!!.javaClass.name,
                     callback.member.name,
                     out,
@@ -1557,6 +1766,348 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
         }
     }
 
+
+    @XposedHooker
+    class BindServiceHook(private val magic: Int) : XposedInterface.Hooker {
+        private lateinit var intent: Any
+
+        companion object {
+            @JvmStatic
+            @BeforeInvocation
+            fun beforeInvocation(callback: BeforeHookCallback): BindServiceHook {
+                val intent = callback.args[0] as Intent
+                val action = intent.action ?: ""
+                val component = intent.component?.shortClassName ?: ""
+                val data = intent.dataString ?: ""
+//                if (data == "null") {
+//                    data = ""
+//                }
+                var extras = ""
+                intent.extras?.let {
+                    for (k in it.keySet()) {
+                        try {
+                            if (extras.isNotEmpty()) {
+                                extras += ","
+                            }
+                            val v = it.getSerializable(k,String::class.java)?.let{ v -> Base64.getEncoder().encodeToString(v.toByteArray())}?:""
+                            extras += """["$k","$v"]"""
+                        } catch (_: Throwable) {
+
+                        }
+                    }
+                }
+                extras = "[$extras]"
+
+                val out =
+                    """"action":"$action","component":"$component","data":"$data","extras":$extras"""
+                module.sendDataToServer(
+                    "Intent",
+                    callback.thisObject!!.javaClass.name,
+                    callback.member.name,
+                    out,
+                    callback.thisObject?.hashCode() ?: 0,
+                    b64st()
+                )
+
+                return BindServiceHook(Random.nextInt()).apply {
+                    this.intent = intent
+                }
+            }
+
+            @JvmStatic
+            @AfterInvocation
+            fun afterInvocation(callback: AfterHookCallback, context: BindServiceHook) {
+                val intent = context.intent as Intent
+                try {
+                    (callback.thisObject as Context).sendBroadcast(intent, "")
+                } catch (_: Throwable) {
+                }
+
+            }
+        }
+    }
+
+    @XposedHooker
+    class HandlerPostHook(private val magic: Int) : XposedInterface.Hooker {
+        companion object {
+            @JvmStatic
+            @BeforeInvocation
+            fun beforeInvocation(callback: BeforeHookCallback): HandlerPostHook {
+                if (callback.args.size == 2) {
+                    try {
+                        if (callback.args[1] as Long > 1000)
+                            callback.args[1] = 1000
+                    } catch (_: Throwable) {
+                        if (callback.args[1] as Int > 1000)
+                            callback.args[1] = 1000
+                    }
+                } else if (callback.args.size == 3) {
+                    try {
+                        if (callback.args[2] as Long > 1000)
+                            callback.args[2] = 1000
+                    } catch (_: Throwable) {
+                        if (callback.args[2] as Int > 1000)
+                            callback.args[2] = 1000
+                    }
+                }
+
+                var n = "${android.os.Process.myPid()}_${android.os.Process.myTid()}".padStart(
+                    23,
+                    '_'
+                )
+                canary()?.let {
+                    if (it.length == 1) {
+                        n = n.drop(8)
+                        n = it + getRandomString(7) + n
+                        module.sendDataToServer(
+                            "Canary",
+                            callback.thisObject!!.javaClass.name,
+                            callback.member.name,
+                            """"canary":"$n"""",
+                            callback.thisObject?.hashCode() ?: 0,
+                            b64st()
+                        )
+                    } else if (it.length == 8) {
+//                        module.log("@@@@@@@@$it")
+                        n = n.drop(8)
+                        n = it + n
+                    }
+//                    else{
+//                        module.log("@@@@@@@@X$it")
+//                    }
+                }
+                val targetClassName = "StackTracer_$n"
+                val wrapperRunnableClass = try {
+                    globalClassLoader.loadClass(targetClassName)!!
+                } catch (_: Throwable) {
+                    val classBytes = createRunnableTracerFunction(n)
+                    val classLoader = InMemoryDexClassLoader(
+                        ByteBuffer.wrap(classBytes),
+                        globalClassLoader
+                    )
+                    classLoader.loadClass(targetClassName)
+                }
+                val oldRunnable = callback.args[0] as Runnable
+                val runnableInstance = wrapperRunnableClass.getConstructor(Runnable::class.java)
+                    .newInstance(Runnable {
+                        oldRunnable.run()
+                    }) as Runnable
+                callback.args[0] = runnableInstance
+
+
+                return HandlerPostHook(Random.nextInt())
+            }
+
+        }
+    }
+
+
+    @XposedHooker
+    class TraceThreadHookFirst(private val magic: Int) : XposedInterface.Hooker {
+        companion object {
+            @JvmStatic
+            @BeforeInvocation
+            fun beforeInvocation(callback: BeforeHookCallback): TraceThreadHookFirst {
+                var n = "${android.os.Process.myPid()}_${android.os.Process.myTid()}".padStart(
+                    23,
+                    '_'
+                )
+                canary()?.let {
+                    if (it.length == 1) {
+                        n = n.drop(8)
+                        n = it + getRandomString(7) + n
+                        module.sendDataToServer(
+                            "Canary",
+                            callback.thisObject!!.javaClass.name,
+                            callback.member.name,
+                            """"canary":"$n"""",
+                            callback.thisObject?.hashCode() ?: 0,
+                            b64st()
+                        )
+                    } else if (it.length == 8) {
+//                        module.log("@@@@@@@@$it")
+                        n = n.drop(8)
+                        n = it + n
+                    }
+//                    else{
+//                        module.log("@@@@@@@@X$it")
+//                    }
+                }
+                val oldRunnable = callback.args[0] as Runnable?
+                oldRunnable?.let {
+                    val targetClassName = "StackTracer_$n"
+                    val wrapperRunnableClass = try {
+                        globalClassLoader.loadClass(targetClassName)!!
+                    } catch (_: Throwable) {
+                        val classBytes = createRunnableTracerFunction(n)
+                        val classLoader = InMemoryDexClassLoader(
+                            ByteBuffer.wrap(classBytes),
+                            globalClassLoader
+                        )
+                        classLoader.loadClass(targetClassName)
+                    }
+
+                    val runnableInstance = wrapperRunnableClass.getConstructor(Runnable::class.java)
+                        .newInstance(Runnable {
+                            it.run()
+                        }) as Runnable
+                    callback.args[0] = runnableInstance
+                }
+
+
+
+                return TraceThreadHookFirst(Random.nextInt())
+            }
+
+        }
+    }
+
+    @XposedHooker
+    class TraceThreadHookSecond(private val magic: Int) : XposedInterface.Hooker {
+        companion object {
+            @JvmStatic
+            @BeforeInvocation
+            fun beforeInvocation(callback: BeforeHookCallback): TraceThreadHookSecond {
+                var n = "${android.os.Process.myPid()}_${android.os.Process.myTid()}".padStart(
+                    23,
+                    '_'
+                )
+                canary()?.let {
+                    if (it.length == 1) {
+                        n = n.drop(8)
+                        n = it + getRandomString(7) + n
+                        module.sendDataToServer(
+                            "Canary",
+                            callback.thisObject!!.javaClass.name,
+                            callback.member.name,
+                            """"canary":"$n"""",
+                            callback.thisObject?.hashCode() ?: 0,
+                            b64st()
+                        )
+                    } else if (it.length == 8) {
+//                        module.log("@@@@@@@@$it")
+                        n = n.drop(8)
+                        n = it + n
+                    }
+//                    else{
+//                        module.log("@@@@@@@@X$it")
+//                    }
+                }
+                val oldRunnable = callback.args[1] as Runnable?
+                oldRunnable?.let {
+                    val targetClassName = "StackTracer_$n"
+                    val wrapperRunnableClass = try {
+                        globalClassLoader.loadClass(targetClassName)!!
+                    } catch (_: Throwable) {
+                        val classBytes = createRunnableTracerFunction(n)
+                        val classLoader = InMemoryDexClassLoader(
+                            ByteBuffer.wrap(classBytes),
+                            globalClassLoader
+                        )
+                        classLoader.loadClass(targetClassName)
+                    }
+
+                    val runnableInstance = wrapperRunnableClass.getConstructor(Runnable::class.java)
+                        .newInstance(Runnable {
+                            it.run()
+                        }) as Runnable
+                    callback.args[1] = runnableInstance
+                }
+
+
+
+                return TraceThreadHookSecond(Random.nextInt())
+            }
+
+        }
+    }
+
+    @XposedHooker
+    class TraceCalableHook(private val magic: Int) : XposedInterface.Hooker {
+        companion object {
+            @JvmStatic
+            @BeforeInvocation
+            fun beforeInvocation(callback: BeforeHookCallback): TraceCalableHook {
+                var n = "${android.os.Process.myPid()}_${android.os.Process.myTid()}".padStart(
+                    23,
+                    '_'
+                )
+                canary()?.let {
+                    if (it.length == 1) {
+                        n = n.drop(8)
+                        n = it + getRandomString(7) + n
+                        module.sendDataToServer(
+                            "Canary",
+                            callback.thisObject!!.javaClass.name,
+                            callback.member.name,
+                            """"canary":"$n"""",
+                            callback.thisObject?.hashCode() ?: 0,
+                            b64st()
+                        )
+                    } else if (it.length == 8) {
+                        n = n.drop(8)
+                        n = it + n
+                    }
+                }
+                val targetClassName = "StackTracer_$n"
+                val wrapperRunnableClass = try {
+                    globalClassLoader.loadClass(targetClassName)!!
+                } catch (_: Throwable) {
+                    val classBytes = createCallableTracerFunction(n)
+                    val classLoader = InMemoryDexClassLoader(
+                        ByteBuffer.wrap(classBytes),
+                        globalClassLoader
+                    )
+                    classLoader.loadClass(targetClassName)
+                }
+                val oldRunnable = callback.args[0] as Callable<*>
+                val runnableInstance = wrapperRunnableClass.getConstructor(Callable::class.java)
+                    .newInstance(Callable {
+                        oldRunnable.call()
+                    }) as Callable<*>
+                callback.args[0] = runnableInstance
+
+
+                return TraceCalableHook(Random.nextInt())
+            }
+
+        }
+    }
+    @XposedHooker
+    class OnRegisterReceiver(private val magic: Int) : XposedInterface.Hooker {
+        companion object {
+            @JvmStatic
+            @BeforeInvocation
+            fun beforeInvocation(callback: BeforeHookCallback): OnRegisterReceiver {
+
+                var actions = ""
+                for (action in (callback.args[1] as IntentFilter).actionsIterator()){
+                    if (actions.isNotEmpty()) {
+                        actions += ","
+                    }
+                    actions += """"$action""""
+                }
+                val clazz = callback.args[0]?.javaClass?.name ?: ""
+                actions = "[$actions]"
+                val out = """"register_class":"$clazz","actions":$actions"""
+
+                if (!module.registeredReceivers.contains(out)) {
+                    module.registeredReceivers.add(out)
+                    module.sendDataToServer(
+                        "RegisterReceiver",
+                        callback.thisObject!!.javaClass.name,
+                        callback.member.name,
+                        out,
+                        callback.thisObject?.hashCode() ?: 0,
+                        b64st()
+                    )
+                }
+
+                return OnRegisterReceiver(Random.nextInt())
+            }
+
+        }
+    }
     @XposedHooker
     class GenericHook(private val magic: Int) : XposedInterface.Hooker {
         companion object {
@@ -1564,6 +2115,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
             @BeforeInvocation
             fun beforeInvocation(callback: BeforeHookCallback): GenericHook {
                 module.sendDataToServer(
+                    "GenericHook",
                     callback.thisObject!!.javaClass.name,
                     callback.member.name,
                     "",
@@ -1573,27 +2125,239 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
 
                 return GenericHook(Random.nextInt())
             }
+
+        }
+    }
+
+    @XposedHooker
+    class GetDeviceIDHook(private val magic: Int) : XposedInterface.Hooker {
+        companion object {
+            @SuppressLint("HardwareIds")
+            @JvmStatic
+            @BeforeInvocation
+            fun beforeInvocation(callback: BeforeHookCallback): GetDeviceIDHook {
+                val context = callback.args[0] as ContentResolver
+                if (!module.isDeviceIdSent) {
+                    module.isDeviceIdSent = true
+                    module.sendDataToServer(
+                        "DeviceID",
+                        "android.provider.Settings.Secure",
+                        callback.member.name,
+                        """"device_id":"${Secure.getString(context, Secure.ANDROID_ID)}"""",
+                        callback.thisObject?.hashCode() ?: 0,
+                        b64st()
+                    )
+                }
+
+                return GetDeviceIDHook(Random.nextInt())
+            }
+
+        }
+    }
+
+    @XposedHooker
+    class SocketHook(private val magic: Int) : XposedInterface.Hooker {
+        companion object {
+            @JvmStatic
+            @BeforeInvocation
+            fun beforeInvocation(callback: BeforeHookCallback): SocketHook {
+                return SocketHook(Random.nextInt())
+            }
+
+            @JvmStatic
+            @AfterInvocation
+            fun afterInvocation(callback: AfterHookCallback, context: SocketHook) {
+                val socket = callback.result as Socket?
+                var localAddr = ""
+                var remoteAddr = ""
+                var canary = ""
+                socket?.localSocketAddress?.let {
+                    localAddr = it.toString()
+                }
+                socket?.remoteSocketAddress?.let {
+                    remoteAddr = it.toString()
+                }
+                canary()?.let {
+                    if (it.length == 8) {
+                        canary = it
+                    }
+                }
+                val out =
+                    """"local_addr": "$localAddr", "remote_addr": "$remoteAddr","canary":"$canary" """
+                module.sendDataToServer(
+                    "SocketHook",
+                    callback.thisObject!!.javaClass.name,
+                    callback.member.name,
+                    out,
+                    callback.thisObject?.hashCode() ?: 0,
+                    b64st()
+                )
+
+            }
+        }
+    }
+
+    @XposedHooker
+    class StartThreadHook(private val magic: Int) : XposedInterface.Hooker {
+        companion object {
+            @JvmStatic
+            @BeforeInvocation
+            fun beforeInvocation(callback: BeforeHookCallback): StartThreadHook {
+                return StartThreadHook(Random.nextInt())
+            }
+
+            @JvmStatic
+            @AfterInvocation
+            fun afterInvocation(callback: AfterHookCallback, context: StartThreadHook) {
+                val thread = callback.thisObject!! as Thread
+
+                val out = """"new_jtid": ${thread.id}"""
+                module.sendDataToServer(
+                    "StartThreadHook",
+                    callback.thisObject!!.javaClass.name,
+                    callback.member.name,
+                    out,
+                    callback.thisObject?.hashCode() ?: 0,
+                    b64st()
+                )
+
+            }
+        }
+    }
+
+    @XposedHooker
+    class ConnectHook(private val magic: Int) : XposedInterface.Hooker {
+        companion object {
+            @JvmStatic
+            @BeforeInvocation
+            fun beforeInvocation(callback: BeforeHookCallback): ConnectHook {
+                return ConnectHook(Random.nextInt())
+            }
+
+            @JvmStatic
+            @AfterInvocation
+            fun afterInvocation(callback: AfterHookCallback, context: ConnectHook) {
+                val socket = callback.thisObject as Socket?
+                var localAddr = ""
+                var remoteAddr = ""
+                var canary = ""
+                socket?.localSocketAddress?.let {
+                    localAddr = it.toString()
+                }
+                socket?.remoteSocketAddress?.let {
+                    remoteAddr = it.toString()
+                }
+                canary()?.let {
+                    if (it.length == 8) {
+                        canary = it
+                    }
+                }
+                val out =
+                    """"local_addr": "$localAddr", "remote_addr": "$remoteAddr","canary":"$canary" """
+                module.sendDataToServer(
+                    "SocketHook",
+                    callback.thisObject!!.javaClass.name,
+                    callback.member.name,
+                    out,
+                    callback.thisObject?.hashCode() ?: 0,
+                    b64st()
+                )
+            }
         }
     }
 
 
-    @SuppressLint("DiscouragedPrivateApi", "PrivateApi")
+    @SuppressLint("DiscouragedPrivateApi", "PrivateApi", "SoonBlockedPrivateApi")
     override fun onPackageLoaded(param: PackageLoadedParam) {
         super.onPackageLoaded(param)
         log("onPackageLoaded: " + param.packageName)
         log("param classloader is " + param.classLoader)
         log("module apk path: " + this.applicationInfo.sourceDir)
         log("----------")
+        globalClassLoader = param.classLoader
 
+//        if (!param.isFirstPackage) return
 
-        if (!param.isFirstPackage) return
+//        val prefs = getRemotePreferences("test")
+//        log("remote prefs: " + prefs.getInt("test", -1))
+//        log("before reg")
+//        prefs.registerOnSharedPreferenceChangeListener { _, key ->
+//            val value = prefs.getInt(key, 0)
+//            log("onSharedPreferenceChanged: $key->$value")
+//        }
+//        mhook(Thread::class.java.getDeclaredMethod("start"), StartThreadHook::class.java)
 
-        val prefs = getRemotePreferences("test")
-        log("remote prefs: " + prefs.getInt("test", -1))
-        log("before reg")
-        prefs.registerOnSharedPreferenceChangeListener { _, key ->
-            val value = prefs.getInt(key, 0)
-            log("onSharedPreferenceChanged: $key->$value")
+//        private String android_id = Secure.getString(getContext().getContentResolver(),
+//            Secure.ANDROID_ID);
+
+        hook(
+            Secure::class.java.getMethod(
+                "getString",
+                ContentResolver::class.java,
+                String::class.java
+            ), GetDeviceIDHook::class.java
+        )
+
+        var traceList = ScheduledThreadPoolExecutor::class.java.declaredMethods
+        traceList += AbstractExecutorService::class.java.declaredMethods
+        traceList += ThreadPoolExecutor::class.java.declaredMethods
+        traceList += CompletableFuture::class.java.declaredMethods
+        traceList += ForkJoinPool::class.java.declaredMethods
+        traceList += Message::class.java.declaredMethods
+        for (m in traceList) {
+            if (m.parameterCount >= 1) {
+                m.parameterTypes[0]?.let {
+                    if (it.name == "java.lang.Runnable") {
+                        hook(m, TraceThreadHookFirst::class.java)
+                    }
+                    if (it.name == "java.util.concurrent.Callable") {
+                        hook(m, TraceCalableHook::class.java)
+                    }
+                }
+            }
+            if (m.parameterCount >= 2) {
+                m.parameterTypes[1]?.let {
+                    if (it.name == "java.lang.Runnable") {
+                        hook(m, TraceThreadHookSecond::class.java)
+                    }
+                }
+            }
+        }
+        var traceConstructors = FutureTask::class.java.declaredConstructors
+        traceConstructors += Thread::class.java.declaredConstructors
+
+        for (m in traceConstructors) {
+            if (m.parameterCount >= 1) {
+                m.parameterTypes[0]?.let {
+                    if (it.name == "java.lang.Runnable") {
+                        hook(m, TraceThreadHookFirst::class.java)
+                    }
+                    if (it.name == "java.util.concurrent.Callable") {
+                        hook(m, TraceCalableHook::class.java)
+                    }
+                }
+            }
+            if (m.parameterCount >= 2) {
+                m.parameterTypes[1]?.let {
+                    if (it.name == "java.lang.Runnable") {
+                        hook(m, TraceThreadHookSecond::class.java)
+                    }
+                }
+            }
+        }
+        for (m in Handler::class.java.methods) {
+            if (m.name.startsWith("post")) {
+                hook(m, HandlerPostHook::class.java)
+            }
+        }
+
+        for (m in Socket::class.java.methods) {
+            if (m.name == "connect") {
+                hook(m, ConnectHook::class.java)
+            }
+        }
+        for (c in Socket::class.java.declaredConstructors) {
+            hook(c, SocketHook::class.java)
         }
 
 
@@ -1605,7 +2369,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
 //        for (m in systemJobSchedulerClass.declaredMethods) {
 //            log("method_name = ${m.toGenericString()}")
 //            if (m.name == "scheduleInternal") {
-//                hook(m, ScheduleInternalHook::class.java)
+//                mhook(m, ScheduleInternalHook::class.java)
 //                break
 //            }
 //        }
@@ -1615,7 +2379,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
 //            WorkSpecClass::class.java,
 //            Integer.TYPE,
 //        )
-//        hook(scheduleInternalMethod, ScheduleInternalHook::class.java)
+//        mhook(scheduleInternalMethod, ScheduleInternalHook::class.java)
 
 
         // init(int opmode, Certificate certificate)
@@ -1784,6 +2548,8 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
             ByteBuffer::class.java
         )
         hook(doFinalByteByteMethod, DoFinalByteBufferByteBufferHook::class.java)
+
+
         // gps
         hook(Location::class.java.getDeclaredMethod("getLatitude"), LatitudeHook::class.java)
         hook(Location::class.java.getDeclaredMethod("getLongitude"), LongitudeHook::class.java)
@@ -1838,8 +2604,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 Integer.TYPE
             ), PendingIntentGetHook::class.java
         )
-
-
+//        module.hook(Handler::class.java.getDeclaredMethod("dispatchMessage", Message::class.java), GenericHook2::class.java)
 
         try {
             // Use reflection to access ActivityThread and get the system context
@@ -1849,17 +2614,18 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
             val currentActivityThread = currentActivityThreadMethod.invoke(null)
             val getSystemContextMethod: Method = activityThreadClass.getMethod("getSystemContext")
             val context = getSystemContextMethod.invoke(currentActivityThread) as Context
-
             for (it in context::class.java.methods) {
                 if (!Modifier.isAbstract(it.modifiers)) {
-                    if (it.name == "sendBroadcast" || it.name == "sendOrderedBroadcast" || it.name == "sendOrderedBroadcastAsUser" || it.name == "sendStickyBroadcast" || it.name == "sendStickyBroadcastAsUser" || it.name == "sendStickyOrderedBroadcast" || it.name == "sendStickyOrderedBroadcastAsUser" || it.name == "sendBroadcastAsUser" || it.name == "sendBroadcastWithMultiplePermissions") {
+                    if (it.name == "sendBroadcast" || it.name == "sendOrderedBroadcast" || it.name == "sendOrderedBroadcastAsUser" || it.name == "sendStickyBroadcast" || it.name == "sendStickyBroadcastAsUser" || it.name == "sendStickyOrderedBroadcast" || it.name == "sendStickyOrderedBroadcastAsUser" || it.name == "sendBroadcastAsUser" || it.name == "sendBroadcastWithMultiplePermissions" || it.name == "startService" || it.name == "startForegroundService") {
                         module.hook(it, FirstArgIntentHook::class.java)
                         continue
                     }
-                    if (it.name == "bindService" || it.name == "bindServiceAsUser") {
-                        module.hook(it, FirstArgIntentHook::class.java)
+                    if (it.name == "bindService" || it.name == "bindServiceAsUser" || it.name == "bindIsolatedService") {
+                        module.hook(it, BindServiceHook::class.java)
                     }
-
+                    if (it.name == "registerReceiver"){
+                        module.hook(it, OnRegisterReceiver::class.java)
+                    }
                 }
             }
             // Use the system context to get the JobScheduler service
@@ -1869,6 +2635,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 jobScheduler::class.java.getDeclaredMethod("schedule", JobInfo::class.java),
                 ScheduleHook::class.java
             )
+
             val alarmManager =
                 context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
             alarmManager.let {
@@ -1890,7 +2657,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 )
             }
         } catch (e: Throwable) {
-            log(e.toString())
+            log("Error: $e")
         }
 
 
@@ -1909,64 +2676,126 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
             classNames.forEach { className ->
                 try {
                     val clazz = classLoader.loadClass(className)
-                    if (clazz.name == "androidx.work.impl.background.systemjob.SystemJobScheduler") {
+                    if (className == "androidx.work.impl.background.systemjob.SystemJobScheduler") {
                         for (m in clazz.declaredMethods) {
                             if (m.name == "scheduleInternal") {
                                 hook(m, ScheduleInternalHook::class.java)
                                 break
                             }
                         }
-                    }
-                    if (clazz.name == "androidx.work.WorkRequest") {
+                    }else if (className.startsWith("kotlinx.coroutines.scheduling.")) {
+                        for (m in clazz.declaredMethods) {
+                            if (m.parameterCount >= 1) {
+                                m.parameterTypes[0]?.let {
+                                    if (it.name == "java.lang.Runnable") {
+                                        hook(m, TraceThreadHookFirst::class.java)
+                                    }
+                                    if (it.name == "java.util.concurrent.Callable") {
+                                        hook(m, TraceCalableHook::class.java)
+                                    }
+                                }
+                            }
+                            if (m.parameterCount >= 2) {
+                                m.parameterTypes[1]?.let {
+                                    if (it.name == "java.lang.Runnable") {
+                                        hook(m, TraceThreadHookSecond::class.java)
+                                    }
+                                }
+                            }
+                        }
+                    } else if (className == "androidx.work.WorkRequest") {
                         for (m in clazz.declaredConstructors) {
                             hook(m, WorkRequestHook::class.java)
                         }
-                    }
-                    if (!Modifier.isAbstract(clazz.modifiers)) { // Worker::class.java.isAssignableFrom(clazz) &&
-                        for (m in getSendBroadcastMethods(clazz)) {
-                            module.hook(m, FirstArgIntentHook::class.java)
-//                            log("Found send broadcast implementation: ${clazz.name}")
+                    } else if (!Modifier.isAbstract(clazz.modifiers)) { // Worker::class.java.isAssignableFrom(clazz) &&
+//                        for (m in getSendBroadcastMethods(clazz)) {
+//                            module.hook(m, FirstArgIntentHook::class.java)
+////                            log("Found send broadcast implementation: ${clazz.name}")
+//                        }
+//                        getMethodClass(
+//                            clazz,
+//                            "android.content.Context",
+//                            "startService",
+//                            Intent::class.java
+//                        )?.let {
+//                            module.hook(it, FirstArgIntentHook::class.java)
+////                            log("Found start service implementation: ${clazz.name}")
+//                        }
+//                        getMethodClass(
+//                            clazz,
+//                            "android.content.Context",
+//                            "startForegroundService",
+//                            Intent::class.java
+//                        )?.let {
+//                            module.hook(it, FirstArgIntentHook::class.java)
+////                            log("Found start foreground service implementation: ${clazz.name}")
+//                        }
+//                        getMethodClass(
+//                            clazz, "android.content.Context", "bindService",
+//                            Intent::class.java,
+//                            ServiceConnection::class.java,
+//                            Integer.TYPE
+//                        )?.let {
+//                            module.hook(it, BindServiceHook::class.java)
+////                            log("Found bind service implementation: ${clazz.name}")
+//                        }
+
+                        getMethodClass(clazz, "android.app.Service", "onCreate")?.let { m ->
+                            module.hook(m, GenericHook::class.java)
+                            getMethodClass(
+                                clazz,
+                                "android.app.Service",
+                                "onBind",
+                                Intent::class.java
+                            )?.let {
+                                module.hook(it, OnBindHook::class.java)
+                            }
+                            getMethodClass(
+                                clazz,
+                                "android.app.Service",
+                                "onRebind",
+                                Intent::class.java
+                            )?.let {
+                                module.hook(it, OnBindHook::class.java)
+                            }
+                            getMethodClass(
+                                clazz, "android.app.Service",
+                                "onStartCommand",
+                                Intent::class.java,
+                                Integer.TYPE,
+                                Integer.TYPE
+                            )?.let {
+                                module.hook(it, OnStartCommandHook::class.java)
+                            }
                         }
-                        getStartServiceMethod(clazz)?.let {
-                            module.hook(it, FirstArgIntentHook::class.java)
-//                            log("Found start service implementation: ${clazz.name}")
-                        }
-                        getStartForegroundServiceMethod(clazz)?.let {
-                            module.hook(it, FirstArgIntentHook::class.java)
-//                            log("Found start foreground service implementation: ${clazz.name}")
-                        }
-                        getBindServiceMethod(clazz)?.let {
-                            module.hook(it, FirstArgIntentHook::class.java)
-//                            log("Found bind service implementation: ${clazz.name}")
-                        }
-                        getOnStartCommandMethod(clazz)?.let {
-                            module.hook(it, OnStartCommandHook::class.java)
-//                            log("Found service implementation: ${clazz.name}")
-                        }
-                        getOnCreateMethod(clazz)?.let {
-                            module.hook(it, GenericHook::class.java)
-//                            log("Found service implementation: ${clazz.name}")
-                        }
-                        getOnAlarmMethod(clazz)?.let {
+                        getMethodClass(
+                            clazz,
+                            "android.app.AlarmManager.OnAlarmListener",
+                            "onAlarm"
+                        )?.let {
                             module.hook(it, GenericHook::class.java)
 //                            log("Found Alarm implementation: ${clazz.name}")
                         }
-                        getOnOnBindMethod(clazz)?.let {
-                            module.hook(it, OnBindHook::class.java)
-//                            log("Found service implementation: ${clazz.name}")
-                        }
-                        getOnStartJobMethod(clazz)?.let {
+
+                        getMethodClass(
+                            clazz,
+                            "android.app.job.JobService",
+                            "onStartJob",
+                            JobParameters::class.java
+                        )?.let {
                             module.hook(it, OnStartJobHook::class.java)
-//                            log("---------------------++--------------")
-//                            log("Found job implementation: ${clazz.name}")
                         }
-                        getDoWorkMethod(clazz)?.let {
+                        getMethodClass(clazz, "androidx.work.Worker", "doWork")?.let {
                             module.hook(it, DoWorkHook::class.java)
-//                            log("Found Worker implementation: ${it.declaringClass.name} - ${it.name} ")
                         }
-                        getOnReceiveMethod(clazz)?.let {
+                        getMethodClass(
+                            clazz,
+                            "android.content.BroadcastReceiver",
+                            "onReceive",
+                            Context::class.java,
+                            Intent::class.java
+                        )?.let {
                             module.hook(it, OnReceiveHook::class.java)
-//                            log("Found receiver implementation: ${clazz.name}")
                         }
 ////                            classCount++
                     }
@@ -2005,8 +2834,14 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
         }
         return classNames
     }
-
-
+//    private inline fun hook(origin: Method, hooker: Class<out Hooker?>): MethodUnhooker<Method> {
+//        module.log("===> ${origin.javaClass}->${origin.name}")
+//        return hook(origin, hooker)
+//    }
+//    private inline fun mhook(origin: Constructor<*>, hooker: Class<out Hooker?>): MethodUnhooker<out Constructor<*>> {
+//        module.log("===> ${origin.javaClass}->${origin.name}")
+//        return hook(origin, hooker)
+//    }
 }
 
 private fun getDexFiles(apkPath: String): List<String> {
@@ -2026,63 +2861,88 @@ private fun getDexFiles(apkPath: String): List<String> {
     return dexFiles
 }
 
-private fun getOnCreateMethod(clazz: Class<*>): Method? {
+//private fun getOnCreateMethod(clazz: Class<*>): Method? {
+//    return try {
+//        val m = clazz.getDeclaredMethod(
+//            "onCreate",
+//        )
+//        var currentClass: Class<*>? = clazz
+//        while (currentClass != null) {
+//            if (currentClass.name == "android.app.Service") { // || currentClass == Worker::class.java
+//                return m
+//            }
+//            currentClass = currentClass.superclass
+//        }
+//        null
+//    } catch (_: Throwable) { // (e: NoSuchMethodException)
+//        null
+//    }
+//}
+
+//private fun getOnStartCommandMethod(clazz: Class<*>): Method? {
+//    return try {
+//        val m = clazz.getDeclaredMethod(
+//            "onStartCommand",
+//            Intent::class.java,
+//            Integer.TYPE,
+//            Integer.TYPE
+//        )
+//        var currentClass: Class<*>? = clazz
+//        while (currentClass != null) {
+//            if (currentClass.name == "android.app.Service") { // || currentClass == Worker::class.java
+//                return m
+//            }
+//            currentClass = currentClass.superclass
+//        }
+//        null
+//    } catch (_: Throwable) { // (e: NoSuchMethodException)
+//        null
+//    }
+//}
+
+
+private fun getMethodClass(
+    clazz: Class<*>,
+    className: String,
+    methodName: String,
+    vararg parameterTypes: Class<*>?
+): Method? {
     return try {
         val m = clazz.getDeclaredMethod(
-            "onCreate",
+            methodName,
+            *parameterTypes,
         )
         var currentClass: Class<*>? = clazz
         while (currentClass != null) {
-            if (currentClass.name == "android.app.Service") { // || currentClass == Worker::class.java
+            if (currentClass.name == className) {
                 return m
             }
             currentClass = currentClass.superclass
         }
         null
-    } catch (_: Throwable) { // (e: NoSuchMethodException)
+    } catch (_: Throwable) {
         null
     }
 }
 
-private fun getOnStartCommandMethod(clazz: Class<*>): Method? {
-    return try {
-        val m = clazz.getDeclaredMethod(
-            "onStartCommand",
-            Intent::class.java,
-            Integer.TYPE,
-            Integer.TYPE
-        )
-        var currentClass: Class<*>? = clazz
-        while (currentClass != null) {
-            if (currentClass.name == "android.app.Service") { // || currentClass == Worker::class.java
-                return m
-            }
-            currentClass = currentClass.superclass
-        }
-        null
-    } catch (_: Throwable) { // (e: NoSuchMethodException)
-        null
-    }
-}
-
-private fun getOnOnBindMethod(clazz: Class<*>): Method? {
-    return try {
-        val m = clazz.getDeclaredMethod(
-            "onBind",
-            Intent::class.java,
-        )
-        var currentClass: Class<*>? = clazz
-        while (currentClass != null) {
-            if (currentClass.name == "android.app.Service") { // || currentClass == Worker::class.java
-                return m
-            }
-            currentClass = currentClass.superclass
-        }
-        null
-    } catch (_: Throwable) { // (e: NoSuchMethodException)
-        null
-    }
-}
+//private fun getOnOnBindMethod(clazz: Class<*>): Method? {
+//    return try {
+//        val m = clazz.getDeclaredMethod(
+//            "onBind",
+//            Intent::class.java,
+//        )
+//        var currentClass: Class<*>? = clazz
+//        while (currentClass != null) {
+//            if (currentClass.name == "android.app.Service") { // || currentClass == Worker::class.java
+//                return m
+//            }
+//            currentClass = currentClass.superclass
+//        }
+//        null
+//    } catch (_: Throwable) { // (e: NoSuchMethodException)
+//        null
+//    }
+//}
 
 private fun getSendBroadcastMethods(clazz: Class<*>): Array<Method> {
     val methods = mutableListOf<Method>()
@@ -2108,126 +2968,279 @@ private fun getSendBroadcastMethods(clazz: Class<*>): Array<Method> {
     return methods.toTypedArray()
 }
 
-private fun getBindServiceMethod(clazz: Class<*>): Method? {
-    return try {
-        val m = clazz.getDeclaredMethod(
-            "bindService",
-            Intent::class.java,
-            ServiceConnection::class.java,
-            Integer.TYPE
-        )
+private fun isExecutorClass(clazz: Class<*>): Boolean {
+
+    try {
         var currentClass: Class<*>? = clazz
+
         while (currentClass != null) {
-            if (currentClass.name == "android.content.Context") { // || currentClass == Worker::class.java
-                return m
+            if (currentClass.name.startsWith("java.util.concurrent") && !currentClass.name.startsWith(
+                    "java.util.concurrent.atomic"
+                ) && currentClass.name != "java.util.concurrent.CancellationException"
+            ) {
+                return true
             }
             currentClass = currentClass.superclass
         }
-        null
-    } catch (_: Throwable) { // (e: NoSuchMethodException)
-        null
+    } catch (_: Throwable) {
+
     }
+    return false
 }
 
-private fun getStartForegroundServiceMethod(clazz: Class<*>): Method? {
-    return try {
-        val m = clazz.getDeclaredMethod("startForegroundService", Intent::class.java)
-        var currentClass: Class<*>? = clazz
-        while (currentClass != null) {
-            if (currentClass.name == "android.content.Context") { // || currentClass == Worker::class.java
-                return m
-            }
-            currentClass = currentClass.superclass
-        }
-        null
-    } catch (_: Throwable) { // (e: NoSuchMethodException)
-        null
-    }
-}
+//private fun threadStartMethod(clazz: Class<*>): Method? {
+//    return try {
+//        val m = clazz.getDeclaredMethod("start")
+//        var currentClass: Class<*>? = clazz
+//        while (currentClass != null) {
+//            if (currentClass.name == "java.lang.Thread") { // || currentClass == Worker::class.java
+//                return m
+//            }
+//            currentClass = currentClass.superclass
+//        }
+//        null
+//    } catch (_: Throwable) { // (e: NoSuchMethodException)
+//        null
+//    }
+//}
 
-private fun getStartServiceMethod(clazz: Class<*>): Method? {
-    return try {
-        val m = clazz.getDeclaredMethod("startService", Intent::class.java)
-        var currentClass: Class<*>? = clazz
-        while (currentClass != null) {
-            if (currentClass.name == "android.content.Context") { // || currentClass == Worker::class.java
-                return m
-            }
-            currentClass = currentClass.superclass
-        }
-        null
-    } catch (_: Throwable) { // (e: NoSuchMethodException)
-        null
-    }
-}
+//private fun getBindServiceMethod(clazz: Class<*>): Method? {
+//    return try {
+//        val m = clazz.getDeclaredMethod(
+//            "bindService",
+//            Intent::class.java,
+//            ServiceConnection::class.java,
+//            Integer.TYPE
+//        )
+//        var currentClass: Class<*>? = clazz
+//        while (currentClass != null) {
+//            if (currentClass.name == "android.content.Context") { // || currentClass == Worker::class.java
+//                return m
+//            }
+//            currentClass = currentClass.superclass
+//        }
+//        null
+//    } catch (_: Throwable) { // (e: NoSuchMethodException)
+//        null
+//    }
+//}
 
-private fun getOnStartJobMethod(clazz: Class<*>): Method? {
-    return try {
-        val m = clazz.getDeclaredMethod("onStartJob", JobParameters::class.java)
-        var currentClass: Class<*>? = clazz
-        while (currentClass != null) {
-            if (currentClass.name == "android.app.job.JobService") { // || currentClass == Worker::class.java
-                return m
-            }
-            currentClass = currentClass.superclass
-        }
-        null
-    } catch (_: Throwable) { // (e: NoSuchMethodException)
-        null
-    }
-}
+//private fun getStartForegroundServiceMethod(clazz: Class<*>): Method? {
+//    return try {
+//        val m = clazz.getDeclaredMethod("startForegroundService", Intent::class.java)
+//        var currentClass: Class<*>? = clazz
+//        while (currentClass != null) {
+//            if (currentClass.name == "android.content.Context") { // || currentClass == Worker::class.java
+//                return m
+//            }
+//            currentClass = currentClass.superclass
+//        }
+//        null
+//    } catch (_: Throwable) { // (e: NoSuchMethodException)
+//        null
+//    }
+//}
 
-private fun getDoWorkMethod(clazz: Class<*>): Method? {
-    return try {
-        val m = clazz.getDeclaredMethod("doWork")
-        var currentClass: Class<*>? = clazz
-        while (currentClass != null) {
-            if (currentClass.name == "androidx.work.Worker") { // || currentClass == Worker::class.java
-                return m
-            }
-            currentClass = currentClass.superclass
-        }
-        null
-    } catch (_: Throwable) { // (e: NoSuchMethodException)
-        null
-    }
-}
+//private fun getStartServiceMethod(clazz: Class<*>): Method? {
+//    return try {
+//        val m = clazz.getDeclaredMethod("startService", Intent::class.java)
+//        var currentClass: Class<*>? = clazz
+//        while (currentClass != null) {
+//            if (currentClass.name == "android.content.Context") { // || currentClass == Worker::class.java
+//                return m
+//            }
+//            currentClass = currentClass.superclass
+//        }
+//        null
+//    } catch (_: Throwable) { // (e: NoSuchMethodException)
+//        null
+//    }
+//}
 
-private fun getOnAlarmMethod(clazz: Class<*>): Method? {
-    return try {
-        val m = clazz.getDeclaredMethod("onAlarm")
-        var currentClass: Class<*>? = clazz
-        while (currentClass != null) {
-            if (currentClass.name == "android.app.AlarmManager.OnAlarmListener") { // || currentClass == Worker::class.java
-                return m
-            }
-            currentClass = currentClass.superclass
-        }
-        null
-    } catch (_: Throwable) { // (e: NoSuchMethodException)
-        null
-    }
-}
+//private fun getOnStartJobMethod(clazz: Class<*>): Method? {
+//    return try {
+//        val m = clazz.getDeclaredMethod("onStartJob", JobParameters::class.java)
+//        var currentClass: Class<*>? = clazz
+//        while (currentClass != null) {
+//            if (currentClass.name == "android.app.job.JobService") { // || currentClass == Worker::class.java
+//                return m
+//            }
+//            currentClass = currentClass.superclass
+//        }
+//        null
+//    } catch (_: Throwable) { // (e: NoSuchMethodException)
+//        null
+//    }
+//}
 
-private fun getOnReceiveMethod(clazz: Class<*>): Method? {
-    return try {
-        val m = clazz.getDeclaredMethod("onReceive", Context::class.java, Intent::class.java)
-        var currentClass: Class<*>? = clazz
-        while (currentClass != null) {
-            if (currentClass.name == "android.content.BroadcastReceiver") { // || currentClass == Worker::class.java
-                return m
-            }
-            currentClass = currentClass.superclass
+//private fun getDoWorkMethod(clazz: Class<*>): Method? {
+//    return try {
+//        val m = clazz.getDeclaredMethod("doWork")
+//        var currentClass: Class<*>? = clazz
+//        while (currentClass != null) {
+//            if (currentClass.name == "androidx.work.Worker") { // || currentClass == Worker::class.java
+//                return m
+//            }
+//            currentClass = currentClass.superclass
+//        }
+//        null
+//    } catch (_: Throwable) { // (e: NoSuchMethodException)
+//        null
+//    }
+//}
+
+//private fun getOnAlarmMethod(clazz: Class<*>): Method? {
+//    return try {
+//        val m = clazz.getDeclaredMethod("onAlarm")
+//        var currentClass: Class<*>? = clazz
+//        while (currentClass != null) {
+//            if (currentClass.name == "android.app.AlarmManager.OnAlarmListener") { // || currentClass == Worker::class.java
+//                return m
+//            }
+//            currentClass = currentClass.superclass
+//        }
+//        null
+//    } catch (_: Throwable) { // (e: NoSuchMethodException)
+//        null
+//    }
+//}
+
+
+//private fun getOnReceiveMethod(clazz: Class<*>): Method? {
+//    return try {
+//        val m = clazz.getDeclaredMethod("onReceive", Context::class.java, Intent::class.java)
+//        var currentClass: Class<*>? = clazz
+//        while (currentClass != null) {
+//            if (currentClass.name == "android.content.BroadcastReceiver") { // || currentClass == Worker::class.java
+//                return m
+//            }
+//            currentClass = currentClass.superclass
+//        }
+//        null
+//    } catch (_: Throwable) { // (e: NoSuchMethodException)
+//        null
+//    }
+//}
+
+
+//@Suppress("NOTHING_TO_INLINE")
+//private inline fun b64st(): String {
+//    // Get the stack trace as a string
+//    val stackTraceString = Thread.currentThread().stackTrace.joinToString("\n")
+//
+//    // Compress the stack trace using BZIP2
+//    val compressedStackTrace = ByteArrayOutputStream().use { byteStream ->
+//        BZip2CompressorOutputStream(byteStream).use { bzip2Stream ->
+//            bzip2Stream.write(stackTraceString.toByteArray())
+//        }
+//        byteStream.toByteArray()
+//    }
+//
+//    // Encode the compressed stack trace to Base64
+//    return Base64.getEncoder().encodeToString(compressedStackTrace)
+//}
+
+@Suppress("NOTHING_TO_INLINE")
+private inline fun canary(): String? {
+    // Get the stack trace as a string
+    for (row in Thread.currentThread().stackTrace) {
+        val stackTraceString = row.toString()
+        if (stackTraceString.contains("StackTracer_") && !stackTraceString.contains("StackTracer__")) {
+            val startIndex = stackTraceString.indexOf("StackTracer_") + "StackTracer_".length
+            return stackTraceString.substring(startIndex, startIndex + 8)
         }
-        null
-    } catch (_: Throwable) { // (e: NoSuchMethodException)
-        null
+
+        if (stackTraceString.contains("LSPHooker_.onReceive")) {
+            return "1"
+        }
+        if (stackTraceString.contains("LSPHooker_.doWork")) {
+            return "2"
+        }
+        if (stackTraceString.contains("LSPHooker_.onStartJob")) {
+            return "3"
+        }
+        if (stackTraceString.contains("LSPHooker_.onStartCommand")) {
+            return "4"
+        }
+        if (stackTraceString.contains("LSPHooker_.onBind")) {
+            return "5"
+        }
+        if (stackTraceString.contains("LSPHooker_.onRebind")) {
+            return "6"
+        }
+        if (stackTraceString.contains("LSPHooker_.onCreate")) {
+            return "7"
+        }
+
     }
+//    val stackTraceString = Thread.currentThread().stackTrace.joinToString("\n")
+
+    // Encode the compressed stack trace to Base64
+    return null
 }
 
 @Suppress("NOTHING_TO_INLINE")
 private inline fun b64st(): String {
-    return Base64.getEncoder().encodeToString(
-        Thread.currentThread().stackTrace.joinToString("\n").toByteArray()
-    )
+    // Get the stack trace as a string
+    val stackTraceString = Thread.currentThread().stackTrace.joinToString("\n")
+
+    // Compress the stack trace using GZIP
+    val compressedStackTrace = ByteArrayOutputStream().use { byteStream ->
+        GZIPOutputStream(byteStream).use { gzipStream ->
+            gzipStream.write(stackTraceString.toByteArray())
+        }
+        byteStream.toByteArray()
+    }
+
+    // Encode the compressed stack trace to Base64
+    return Base64.getEncoder().encodeToString(compressedStackTrace)
 }
+
+fun getRandomString(length: Int): String {
+    val allowedChars = ('A'..'Z') + ('a'..'z') + ('0'..'9')
+    return (1..length)
+        .map { allowedChars.random() }
+        .joinToString("")
+}
+
+
+private fun createRunnableTracerFunction(name: String): ByteArray {
+    val magic = Base64.getDecoder().decode("ZGV4CjAzNQA=")
+    val part1 = Base64.getDecoder()
+        .decode("XAQAAHAAAAB4VjQSAAAAAAAAAACYAwAAEgAAAHAAAAAHAAAAuAAAAAMAAADUAAAAAQAAAPgAAAAFAAAAAAEAAAEAAAAoAQAAFAMAAEgBAAC6AQAAwgEAAMYBAADJAQAAzQEAAPQBAAATAgAAKwIAAEMCAABXAgAAbQIAAJcCAACaAgAAngIAAKkCAACsAgAAsQIAALgCAAACAAAABAAAAAUAAAAGAAAACAAAAAkAAAALAAAAAwAAAAAAAACsAQAACwAAAAYAAAAAAAAADAAAAAYAAAC0AQAAAQAFAA4AAAABAAIAAAAAAAEAAAANAAAAAQABAA8AAAAEAAEAAAAAAAUAAQAPAAAAAQAAAAEAAAAEAAAApAEAAAoAAACIAwAAaAMAAAAAAAACAAIAAAAAAAAAAAACAAAAEvEPAQIAAgABAAAAmAEAAAYAAABwEAMAAABbAQAADgACAAEAAQAAAJ4BAAAIAAAAVBAAADgABQByEAQAAAAOAAQBAA48AAoADksAAAIAAAAFAAMAAQAAAAQAAAABAAAABQAGPGluaXQ+AAI+OwABSQACSUwAJUxTdGFja1RyYWNlcl8=")!!
+    val part2 = Base64.getDecoder()
+        .decode("OwAdTGRhbHZpay9hbm5vdGF0aW9uL1NpZ25hdHVyZTsAFkxqYXZhL2xhbmcvQ29tcGFyYWJsZTsAFkxqYXZhL2xhbmcvQ29tcGFyYWJsZTwAEkxqYXZhL2xhbmcvT2JqZWN0OwAUTGphdmEvbGFuZy9SdW5uYWJsZTsAKFN0YWNrVHJhY2VyXw==")!!
+    val part3 = Base64.getDecoder()
+        .decode("LmphdmEAAVYAAlZMAAljb21wYXJlVG8AAXIAA3J1bgAFdmFsdWUAnQF+fkQ4eyJiYWNrZW5kIjoiZGV4IiwiY29tcGlsYXRpb24tbW9kZSI6InJlbGVhc2UiLCJoYXMtY2hlY2tzdW1zIjpmYWxzZSwibWluLWFwaSI6MSwic2hhLTEiOiJmYWNlZGY0MWJiZDI4YjU2M2QxZTllMDljNWY3MmQ3YzVjYTU5OGQ1IiwidmVyc2lvbiI6IjguMi4yLWRldiJ9AAICARAcBRcIFwkXBxcIFwEAAQECABIAgYAE3AIBAcgCAQH4AgAAAAABAAAAWAMAAIADAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAEAAAAAAAAAAQAAABIAAABwAAAAAgAAAAcAAAC4AAAAAwAAAAMAAADUAAAABAAAAAEAAAD4AAAABQAAAAUAAAAAAQAABgAAAAEAAAAoAQAAASAAAAMAAABIAQAAAyAAAAIAAACYAQAAARAAAAMAAACkAQAAAiAAABIAAAC6AQAABCAAAAEAAABYAwAAACAAAAEAAABoAwAAAxAAAAIAAAB8AwAABiAAAAEAAACIAwAAABAAAAEAAACYAwAA")!!
+    var total = part1 + name.toByteArray() + part2 + name.toByteArray() + part3
+    val digest = MessageDigest.getInstance("SHA-1")
+    total = digest.digest(total) + total
+    val checksum = Adler32()
+    checksum.update(total)
+    val byteChecksum = ByteBuffer.allocate(Int.SIZE_BYTES)
+    byteChecksum.order(ByteOrder.LITTLE_ENDIAN)
+    byteChecksum.putInt(checksum.value.toInt())
+    total = magic + byteChecksum.array() + total
+    return total
+}
+
+private fun createCallableTracerFunction(name: String): ByteArray {
+    val magic = Base64.getDecoder().decode("ZGV4CjAzNQA=")
+    val part1 = Base64.getDecoder()
+        .decode("3AQAAHAAAAB4VjQSAAAAAAAAAAAYBAAAFgAAAHAAAAAHAAAAyAAAAAMAAADkAAAAAQAAAAgBAAAEAAAAEAEAAAEAAAAwAQAAjAMAAFABAACmAQAAqQEAALABAAC1AQAAvQEAAMABAADDAQAA6gEAAAkCAAAlAgAAPAIAAFACAABxAgAAkgIAALwCAADDAgAAzAIAAM8CAADTAgAA1gIAANwCAADjAgAABgAAAAcAAAAIAAAACQAAAAoAAAALAAAAEAAAAAUAAAAEAAAAAAAAABAAAAAGAAAAAAAAABEAAAAGAAAAoAEAAAAABQASAAAAAAACAAMAAAAAAAAAEwAAAAQAAQADAAAABQAAABMAAAAAAAAAAQAAAAQAAACgAQAADQAAAPADAAC7AwAAAAAAAAIAAQABAAAAlAEAAAsAAABUEAAAOAAHAHIQAwAAAAwAEQASABEAAAACAAIAAQAAAJkBAAAGAAAAcBACAAAAWwEAAA4ADAAOSwAGAQAOPAAAAQAAAAUAASgABSgpVFY7AAM8VjoABjxpbml0PgABPgABTAAlTFN0YWNrVHJhY2VyXw==")!!
+    val part2 = Base64.getDecoder()
+        .decode("OwAdTGRhbHZpay9hbm5vdGF0aW9uL1NpZ25hdHVyZTsAGkxkYWx2aWsvYW5ub3RhdGlvbi9UaHJvd3M7ABVMamF2YS9sYW5nL0V4Y2VwdGlvbjsAEkxqYXZhL2xhbmcvT2JqZWN0OwAfTGphdmEvdXRpbC9jb25jdXJyZW50L0NhbGxhYmxlOwAfTGphdmEvdXRpbC9jb25jdXJyZW50L0NhbGxhYmxlPAAoU3RhY2tUcmFjZXJf")!!
+    val part3 = Base64.getDecoder()
+        .decode("LmphdmEABVRWOz47AAdUVjs+OylWAAFWAAJWTAABYwAEY2FsbAAFdmFsdWUAnQF+fkQ4eyJiYWNrZW5kIjoiZGV4IiwiY29tcGlsYXRpb24tbW9kZSI6InJlbGVhc2UiLCJoYXMtY2hlY2tzdW1zIjpmYWxzZSwibWluLWFwaSI6MSwic2hhLTEiOiJmYWNlZGY0MWJiZDI4YjU2M2QxZTllMDljNWY3MmQ3YzVjYTU5OGQ1IiwidmVyc2lvbiI6IjguMi4yLWRldiJ9AAIBARQcAxcAFwwXDwIBARQcARcBAgIBFBwBGAMCAQEUHAIXDBcOAgEBFBwGFwIXChcEFwoXDBcOAAEBAQASAIGABPgCAQHQAgABAAAAgwMAAAIAAACPAwAAlwMAAAEAAACfAwAAAQAAAKkDAADoAwAAAQAAAAIAAAAAAAAAAAAAAOADAAAAAAAAzAMAAAEAAADUAwAAEAAAAAAAAAABAAAAAAAAAAEAAAAWAAAAcAAAAAIAAAAHAAAAyAAAAAMAAAADAAAA5AAAAAQAAAABAAAACAEAAAUAAAAEAAAAEAEAAAYAAAABAAAAMAEAAAEgAAACAAAAUAEAAAMgAAACAAAAlAEAAAEQAAABAAAAoAEAAAIgAAAWAAAApgEAAAQgAAAFAAAAgwMAAAAgAAABAAAAuwMAAAMQAAAEAAAAzAMAAAYgAAABAAAA8AMAAAAQAAABAAAAGAQAAA==")!!
+    var total = part1 + name.toByteArray() + part2 + name.toByteArray() + part3
+    val digest = MessageDigest.getInstance("SHA-1")
+    total = digest.digest(total) + total
+    val checksum = Adler32()
+    checksum.update(total)
+    val byteChecksum = ByteBuffer.allocate(Int.SIZE_BYTES)
+    byteChecksum.order(ByteOrder.LITTLE_ENDIAN)
+    byteChecksum.putInt(checksum.value.toInt())
+    total = magic + byteChecksum.array() + total
+    return total
+}
+
