@@ -87,7 +87,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
 
     //    private val endpoint = "https://172.30.143.86:8888/endpoint"
     private lateinit var webSocket: WebSocket
-    private val webSocketUrl = "wss://172.30.143.86:8888/endpoint"
+    private val webSocketUrl = "wss://172.30.143.74:8888/endpoint"
 //    private val webSocketUrl = "wss://172.30.143.74:8888/endpoint"
 //    private val webSocketUrl = "wss://192.168.70.100:8888/endpoint"
     private var isDeviceIdSent = false
@@ -1856,14 +1856,14 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                     '_'
                 )
                 canary()?.let {
-                    if (it.length == 1) {
+                    if (it[1] == '-') {
                         n = n.drop(8)
-                        n = it + getRandomString(7) + n
+                        n = it[0] + getRandomString(7) + n
                         module.sendDataToServer(
                             "Canary",
                             callback.thisObject!!.javaClass.name,
                             callback.member.name,
-                            """"canary":"$n"""",
+                            """"canary":"$n","target":"${it.substringAfter("-")}"""",
                             callback.thisObject?.hashCode() ?: 0,
                             b64st()
                         )
@@ -1913,14 +1913,14 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                     '_'
                 )
                 canary()?.let {
-                    if (it.length == 1) {
+                    if (it[1] == '-') {
                         n = n.drop(8)
-                        n = it + getRandomString(7) + n
+                        n = it[0] + getRandomString(7) + n
                         module.sendDataToServer(
                             "Canary",
                             callback.thisObject!!.javaClass.name,
                             callback.member.name,
-                            """"canary":"$n"""",
+                            """"canary":"$n","target":"${it.substringAfter("-")}"""",
                             callback.thisObject?.hashCode() ?: 0,
                             b64st()
                         )
@@ -1973,14 +1973,14 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                     '_'
                 )
                 canary()?.let {
-                    if (it.length == 1) {
+                    if (it[1] == '-') {
                         n = n.drop(8)
-                        n = it + getRandomString(7) + n
+                        n = it[0] + getRandomString(7) + n
                         module.sendDataToServer(
                             "Canary",
                             callback.thisObject!!.javaClass.name,
                             callback.member.name,
-                            """"canary":"$n"""",
+                            """"canary":"$n","target":"${it.substringAfter("-")}"""",
                             callback.thisObject?.hashCode() ?: 0,
                             b64st()
                         )
@@ -2033,14 +2033,14 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                     '_'
                 )
                 canary()?.let {
-                    if (it.length == 1) {
+                    if (it[1] == '-') {
                         n = n.drop(8)
-                        n = it + getRandomString(7) + n
+                        n = it[0] + getRandomString(7) + n
                         module.sendDataToServer(
                             "Canary",
                             callback.thisObject!!.javaClass.name,
                             callback.member.name,
-                            """"canary":"$n"""",
+                            """"canary":"$n","target":"${it.substringAfter("-")}"""",
                             callback.thisObject?.hashCode() ?: 0,
                             b64st()
                         )
@@ -3150,26 +3150,26 @@ private inline fun canary(): String? {
             return stackTraceString.substring(startIndex, startIndex + 8)
         }
 
-        if (stackTraceString.contains("LSPHooker_.onReceive")) {
-            return "1"
+        if (stackTraceString.contains("LSPHooker_") && stackTraceString.contains(".onReceive(")) {
+            return "1-"+stackTraceString.substringBefore("(").substringAfter("_")
         }
-        if (stackTraceString.contains("LSPHooker_.doWork")) {
-            return "2"
+        if (stackTraceString.startsWith("LSPHooker_") && stackTraceString.contains(".doWork(")) {
+            return "2-"+stackTraceString.substringBefore("(").substringAfter("_")
         }
-        if (stackTraceString.contains("LSPHooker_.onStartJob")) {
-            return "3"
+        if (stackTraceString.contains("LSPHooker_") && stackTraceString.contains(".onStartJob(")) {
+            return "3-"+stackTraceString.substringBefore("(").substringAfter("_")
         }
-        if (stackTraceString.contains("LSPHooker_.onStartCommand")) {
-            return "4"
+        if (stackTraceString.contains("LSPHooker_") && stackTraceString.contains(".onStartCommand(")) {
+            return "4-"+stackTraceString.substringBefore("(").substringAfter("_")
         }
-        if (stackTraceString.contains("LSPHooker_.onBind")) {
-            return "5"
+        if (stackTraceString.contains("LSPHooker_") && stackTraceString.contains(".onBind(")) {
+            return "5-"+stackTraceString.substringBefore("(").substringAfter("_")
         }
-        if (stackTraceString.contains("LSPHooker_.onRebind")) {
-            return "6"
+        if (stackTraceString.contains("LSPHooker_") && stackTraceString.contains(".onRebind(")) {
+            return "6-"+stackTraceString.substringBefore("(").substringAfter("_")
         }
-        if (stackTraceString.contains("LSPHooker_.onCreate")) {
-            return "7"
+        if (stackTraceString.contains("LSPHooker_") && stackTraceString.contains(".onCreate(")) {
+            return "7-"+stackTraceString.substringBefore("(").substringAfter("_")
         }
 
     }
