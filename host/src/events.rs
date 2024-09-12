@@ -852,6 +852,7 @@ pub struct Canary {
     method_name: String,
     hashcode: i64,
     canary: String,
+    target: String,
     pid: i64,
     tid: i64,
     uid: i64,
