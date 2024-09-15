@@ -19,6 +19,7 @@ def main():
         app_network_data = dict()
         app_paths = set()
         missing_events = dict()
+        device_ids = dict()
         # apps = set()
         with open(global_events, 'r') as f:
             for line in f:
@@ -30,6 +31,9 @@ def main():
                 v = j[first_key]
                 if "package_name" in v and "uid" in v and "ts" in v:
                     d = v["package_name"].split(":")[0]
+                    # if first_key == "DeviceID":
+                    #     device_id[d] = v["device_id"]
+                    # print(device_id)
                     if v["uid"] not in app_uids:
                         app_uids[v["uid"]] = set()
                         app_uids[v["uid"]].add((d, v["ts"]))
@@ -138,6 +142,8 @@ def main():
                 addr = ""
                 ts = ""
                 j = json.loads(line)
+                if "DeviceID" in j:
+                    device_ids[d] = j["DeviceID"]["device_id"]
                 if "SocketAddrV6" in j:
                     if "." in j["SocketAddrV6"]["left_socket_addr"]["ip"]:
                         addr = j["SocketAddrV6"]["left_socket_addr"]["ip"].split(":")[-1]
@@ -207,46 +213,20 @@ def main():
                 pass
             with open(app_events, 'wb') as f:
                 f.write(data.SerializeToString())
-
+        for pkg,device_id in device_ids.items():
+            app_id_file = pkg+"/analysis_result/device_id-"+session_id+".txt"
+            try:
+                os.remove(app_id_file)
+            except:
+                pass
+            with open(app_id_file, 'w') as f:
+                f.write(device_id)
             # print(y)
         # app_events = d+"/analysis_result/network-"+session_id+".pb"
         # with open(app_events, 'wb') as f:
         #     f.write(app_network_data[d].SerializeToString())
         continue
-                # app_network_data[target_app].records.extend([record])
-            # break
-            
-            # print(request.request.trailers)
-            # print(record)
-            # break
-            # try:
-            #     network_request.body = request.request.content if request.request.content is not None else b''
-            # except:
-            #     request.request.decode(False)
-            #     network_request.body = request.request.content if request.request.content is not None else b''
-            # for k,v in request.request.headers.items():
-            #     request_header = Header()
-            #     request_header.key = k
-            #     request_header.value = v
-            #     network_request.headers.extend([request_header])
-            # print(request.request.authority)
-            # print(request.request.scheme)
-            # print(request.request.trailers)
-            # continue
-            # break
-            # ts = int(request.timestamp_start*1000)
-            # port = request.client_conn.peername[1]
-            # if port in app_connections:
-            #     target_app = find_closest_app(ts,app_connections[port])
-                # print(f"{port}:{ts} -> {target_app}")
-                # print(request)
-            # else:
-            #     # if request.server_conn.address[0] == "aps-webhandler.appsflyer.com":
-            #     print(request)
-            #     # print(f"{port} not found")
-            #     # print(request.server_conn.address)
-            #     continue
-            # break
+
                     
 def get_headers_and_body(r):
     headers = []
