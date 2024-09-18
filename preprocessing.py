@@ -128,7 +128,7 @@ def main():
         print("Missing events written")
         for d in app_paths:
             app_events = d+"/analysis_result/events-"+session_id+".txt"
-            app_events_missing = app+"/analysis_result/events-missing-"+session_id+".txt"
+            app_events_missing = d+"/analysis_result/events-missing-"+session_id+".txt"
             lines = set()
             if os.path.isfile(app_events):
                 with open(app_events, 'r') as f:
