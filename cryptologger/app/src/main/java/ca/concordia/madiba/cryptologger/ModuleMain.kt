@@ -5,6 +5,7 @@ package ca.concordia.madiba.cryptologger
 import android.annotation.SuppressLint
 import android.app.ActivityManager
 import android.app.AlarmManager
+import android.app.KeyguardManager
 import android.app.Notification
 import android.app.PendingIntent
 import android.app.Service
@@ -19,6 +20,7 @@ import android.location.Location
 import android.os.Handler
 import android.os.Looper
 import android.os.Message
+import android.os.PowerManager
 import android.os.StrictMode
 import android.os.StrictMode.ThreadPolicy
 import android.os.WorkSource
@@ -188,8 +190,8 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
         } else {
             """{"$objName":{"class_name":"$className","method_name":"$methodName", "hashcode": $hashcode, "pid":${android.os.Process.myPid()},"tid":${android.os.Process.myTid()},"jtid":${Thread.currentThread().id},"uid":${android.os.Process.myUid()},"package_name":"$packageName","ts":${System.currentTimeMillis()}, "importance":${a.importance}, "stack_trace": "$stackTrace"}}"""
         }
-//        module.log(completedData)
-//        return
+        module.log(completedData)
+        return
         if (::webSocket.isInitialized) {
             webSocket.send(completedData)
         } else {
@@ -1175,6 +1177,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 val action = intent?.action ?: ""
                 val component = intent?.component?.shortClassName ?: ""
                 val data = intent?.dataString ?: ""
+                val packcage = intent?.`package`?:""
 
                 val flags = callback.args[1] as Int
                 val startId = callback.args[2] as Int
@@ -1195,7 +1198,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 extras = "[$extras]"
 
                 val out =
-                    """"action":"$action","component":"$component","data":"$data","extras":$extras,"flags":$flags,"start_id":$startId"""
+                    """"action":"$action","component":"$component","data":"$data","extras":$extras,"intent_package":"$packcage","flags":$flags,"start_id":$startId"""
 
                 Thread {
                     try {
@@ -1246,6 +1249,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 val action = intent.action ?: ""
                 val component = intent.component?.shortClassName ?: ""
                 val data = intent.dataString ?: ""
+                val packcage = intent.`package`?:""
                 var extras = ""
                 intent.extras?.let {
                     for (k in it.keySet()) {
@@ -1263,7 +1267,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 extras = "[$extras]"
 
                 val out =
-                    """"action":"$action","component":"$component","data":"$data","extras":$extras"""
+                    """"action":"$action","component":"$component","data":"$data","extras":$extras,"intent_package":"$packcage""""
 
 
 
@@ -1400,6 +1404,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 val action = intent.action ?: ""
                 val component = intent.component?.shortClassName ?: ""
                 val data = intent.dataString ?: ""
+                val packcage = intent.`package`?:""
                 var extras = ""
                 intent.extras?.let {
                     for (k in it.keySet()) {
@@ -1417,7 +1422,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 extras = "[$extras]"
 
                 val out =
-                    """"request_code":${context.requestCode},"action":"$action","component":"$component","data":"$data","extras":$extras,"flags":${context.flags}""" //
+                    """"request_code":${context.requestCode},"action":"$action","component":"$component","data":"$data","extras":$extras,"intent_package":"$packcage","flags":${context.flags}""" //
                 module.sendDataToServer(
                     "PendingIntentGet",
                     "android.app.PendingIntent",
@@ -1460,7 +1465,9 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 val priority = jobInfo.priority
                 val triggerContentMaxDelay = jobInfo.triggerContentMaxDelay
                 val triggerContentUpdateDelay = jobInfo.triggerContentUpdateDelay
-                val triggerContentUris = jobInfo.triggerContentUris?.joinToString(",") ?: ""
+                val triggerContentUris =
+                    jobInfo.triggerContentUris?.joinToString(",") { it.uri.toString() }
+                    ?: ""
                 val isExpedited = jobInfo.isExpedited
                 val isImportantWhileForeground = jobInfo.isImportantWhileForeground
                 val isPeriodic = jobInfo.isPeriodic
@@ -1668,6 +1675,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 val action = intent.action ?: ""
                 val component = intent.component?.shortClassName ?: ""
                 val data = intent.dataString ?: ""
+                val packcage = intent.`package`?:""
                 var extras = ""
                 intent.extras?.let {
                     for (k in it.keySet()) {
@@ -1685,7 +1693,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 extras = "[$extras]"
 
                 val out =
-                    """"action":"$action","component":"$component","data":"$data","extras":$extras,"start_ts":${System.currentTimeMillis()}"""
+                    """"action":"$action","component":"$component","data":"$data","extras":$extras,"intent_package":"$packcage","start_ts":${System.currentTimeMillis()}"""
                 Thread {
                     try {
                         module.sendDataToServer(
@@ -1734,6 +1742,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 val action = intent.action ?: ""
                 val component = intent.component?.shortClassName ?: ""
                 val data = intent.dataString ?: ""
+                val packcage = intent.`package`?:""
                 var extras = ""
                 intent.extras?.let {
                     for (k in it.keySet()) {
@@ -1751,7 +1760,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 extras = "[$extras]"
 
                 val out =
-                    """"action":"$action","component":"$component","data":"$data","extras":$extras"""
+                    """"action":"$action","component":"$component","data":"$data","extras":$extras,"intent_package":"$packcage""""
                 module.sendDataToServer(
                     "Intent",
                     callback.thisObject!!.javaClass.name,
@@ -1779,6 +1788,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 val action = intent.action ?: ""
                 val component = intent.component?.shortClassName ?: ""
                 val data = intent.dataString ?: ""
+                val packcage = intent.`package`?:""
 //                if (data == "null") {
 //                    data = ""
 //                }
@@ -1799,7 +1809,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 extras = "[$extras]"
 
                 val out =
-                    """"action":"$action","component":"$component","data":"$data","extras":$extras"""
+                    """"action":"$action","component":"$component","data":"$data","extras":$extras,"intent_package":"$packcage""""
                 module.sendDataToServer(
                     "Intent",
                     callback.thisObject!!.javaClass.name,
@@ -2152,6 +2162,32 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 return GetDeviceIDHook(Random.nextInt())
             }
 
+        }
+    }
+
+    @XposedHooker
+    class IsDeviceSecure(private val magic: Int) : XposedInterface.Hooker {
+        companion object {
+            @JvmStatic
+            @BeforeInvocation
+            fun beforeInvocation(callback: BeforeHookCallback): IsDeviceSecure {
+                module.sendDataToServer(
+                    "GenericHook",
+                    callback.thisObject!!.javaClass.name,
+                    callback.member.name,
+                    "",
+                    callback.thisObject?.hashCode() ?: 0,
+                    b64st()
+                )
+
+                return IsDeviceSecure(Random.nextInt())
+            }
+
+            @JvmStatic
+            @AfterInvocation
+            fun afterInvocation(callback: AfterHookCallback, context: IsDeviceSecure) {
+                callback.result = true
+            }
         }
     }
 
@@ -2634,6 +2670,24 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
             hook(
                 jobScheduler::class.java.getDeclaredMethod("schedule", JobInfo::class.java),
                 ScheduleHook::class.java
+            )
+
+            val keyguard =
+                context.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+            hook(
+                keyguard::class.java.getDeclaredMethod("isDeviceSecure"),
+                IsDeviceSecure::class.java
+            )
+            hook(
+                keyguard::class.java.getDeclaredMethod("isKeyguardSecure"),
+                IsDeviceSecure::class.java
+            )
+
+            val powerManager =
+                context.getSystemService(Context.POWER_SERVICE) as PowerManager
+            hook(
+                powerManager::class.java.getDeclaredMethod("isInteractive"),
+                GenericHook::class.java
             )
 
             val alarmManager =

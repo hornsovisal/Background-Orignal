@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace = "ca.concordia.madiba.cryptologger"
-    compileSdk = 34
-    buildToolsVersion = "34.0.0"
+    compileSdk = 35
+//    buildToolsVersion = "34.0.0"
 
     defaultConfig {
         minSdk = 33
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
     }
@@ -28,8 +28,11 @@ android {
         viewBinding = true
     }
 
-    kotlin {
-        jvmToolchain(17)
+//    kotlin {
+//        jvmToolchain(17)
+//    }
+    kotlinOptions {
+        jvmTarget = "17"
     }
 
     compileOptions {
@@ -47,7 +50,9 @@ android {
     lint {
         abortOnError = true
         checkReleaseBuilds = false
+        baseline = file("lint-baseline.xml")
     }
+
 }
 
 dependencies {
