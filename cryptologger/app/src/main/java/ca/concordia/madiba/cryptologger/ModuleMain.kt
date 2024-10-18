@@ -89,9 +89,11 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
 
     //    private val endpoint = "https://172.30.143.86:8888/endpoint"
     private lateinit var webSocket: WebSocket
+
+//        private val webSocketUrl = "wss://172.30.143.86:8888/endpoint"
     private val webSocketUrl = "wss://172.30.143.74:8888/endpoint"
-//    private val webSocketUrl = "wss://172.30.143.74:8888/endpoint"
-//    private val webSocketUrl = "wss://192.168.70.100:8888/endpoint"
+
+    //    private val webSocketUrl = "wss://192.168.70.100:8888/endpoint"
     private var isDeviceIdSent = false
     //val url = URL("https://192.168.70.100:8888/endpoint")
 
@@ -190,8 +192,8 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
         } else {
             """{"$objName":{"class_name":"$className","method_name":"$methodName", "hashcode": $hashcode, "pid":${android.os.Process.myPid()},"tid":${android.os.Process.myTid()},"jtid":${Thread.currentThread().id},"uid":${android.os.Process.myUid()},"package_name":"$packageName","ts":${System.currentTimeMillis()}, "importance":${a.importance}, "stack_trace": "$stackTrace"}}"""
         }
-        module.log(completedData)
-        return
+//        module.log(completedData)
+//        return
         if (::webSocket.isInitialized) {
             webSocket.send(completedData)
         } else {
@@ -1177,23 +1179,28 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 val action = intent?.action ?: ""
                 val component = intent?.component?.shortClassName ?: ""
                 val data = intent?.dataString ?: ""
-                val packcage = intent?.`package`?:""
+                val packcage = intent?.`package` ?: ""
 
                 val flags = callback.args[1] as Int
                 val startId = callback.args[2] as Int
                 var extras = ""
-                intent?.extras?.let {
-                    for (k in it.keySet()) {
-                        try {
-                            if (extras.isNotEmpty()) {
-                                extras += ","
-                            }
-                            val v = it.getSerializable(k,String::class.java)?.let{ v -> Base64.getEncoder().encodeToString(v.toByteArray())}?:""
-                            extras += """["$k","$v"]"""
-                        } catch (_: Throwable) {
+                try {
+                    intent?.extras?.let { bundle ->
+                        for (k in bundle.keySet()) {
+                            try {
+                                if (extras.isNotEmpty()) {
+                                    extras += ","
+                                }
+                                val v = bundle.getSerializable(k, String::class.java)?.let { v ->
+                                    Base64.getEncoder().encodeToString(v.toByteArray())
+                                } ?: ""
+                                extras += """["$k","$v"]"""
+                            } catch (_: Throwable) {
 
+                            }
                         }
                     }
+                } catch (_: Throwable) {
                 }
                 extras = "[$extras]"
 
@@ -1249,20 +1256,25 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 val action = intent.action ?: ""
                 val component = intent.component?.shortClassName ?: ""
                 val data = intent.dataString ?: ""
-                val packcage = intent.`package`?:""
+                val packcage = intent.`package` ?: ""
                 var extras = ""
-                intent.extras?.let {
-                    for (k in it.keySet()) {
-                        try {
-                            if (extras.isNotEmpty()) {
-                                extras += ","
-                            }
-                            val v = it.getSerializable(k,String::class.java)?.let{ v -> Base64.getEncoder().encodeToString(v.toByteArray())}?:""
-                            extras += """["$k","$v"]"""
-                        } catch (_: Throwable) {
+                try {
+                    intent.extras?.let { bundle ->
+                        for (k in bundle.keySet()) {
+                            try {
+                                if (extras.isNotEmpty()) {
+                                    extras += ","
+                                }
+                                val v = bundle.getSerializable(k, String::class.java)?.let { v ->
+                                    Base64.getEncoder().encodeToString(v.toByteArray())
+                                } ?: ""
+                                extras += """["$k","$v"]"""
+                            } catch (_: Throwable) {
 
+                            }
                         }
                     }
+                } catch (_: Throwable) {
                 }
                 extras = "[$extras]"
 
@@ -1404,20 +1416,25 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 val action = intent.action ?: ""
                 val component = intent.component?.shortClassName ?: ""
                 val data = intent.dataString ?: ""
-                val packcage = intent.`package`?:""
+                val packcage = intent.`package` ?: ""
                 var extras = ""
-                intent.extras?.let {
-                    for (k in it.keySet()) {
-                        try {
-                            if (extras.isNotEmpty()) {
-                                extras += ","
-                            }
-                            val v = it.getSerializable(k,String::class.java)?.let{ v -> Base64.getEncoder().encodeToString(v.toByteArray())}?:""
-                            extras += """["$k","$v"]"""
-                        } catch (_: Throwable) {
+                try {
+                    intent.extras?.let { bundle ->
+                        for (k in bundle.keySet()) {
+                            try {
+                                if (extras.isNotEmpty()) {
+                                    extras += ","
+                                }
+                                val v = bundle.getSerializable(k, String::class.java)?.let { v ->
+                                    Base64.getEncoder().encodeToString(v.toByteArray())
+                                } ?: ""
+                                extras += """["$k","$v"]"""
+                            } catch (_: Throwable) {
 
+                            }
                         }
                     }
+                } catch (_: Throwable) {
                 }
                 extras = "[$extras]"
 
@@ -1467,7 +1484,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 val triggerContentUpdateDelay = jobInfo.triggerContentUpdateDelay
                 val triggerContentUris =
                     jobInfo.triggerContentUris?.joinToString(",") { it.uri.toString() }
-                    ?: ""
+                        ?: ""
                 val isExpedited = jobInfo.isExpedited
                 val isImportantWhileForeground = jobInfo.isImportantWhileForeground
                 val isPeriodic = jobInfo.isPeriodic
@@ -1675,20 +1692,25 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 val action = intent.action ?: ""
                 val component = intent.component?.shortClassName ?: ""
                 val data = intent.dataString ?: ""
-                val packcage = intent.`package`?:""
+                val packcage = intent.`package` ?: ""
                 var extras = ""
-                intent.extras?.let {
-                    for (k in it.keySet()) {
-                        try {
-                            if (extras.isNotEmpty()) {
-                                extras += ","
-                            }
-                            val v = it.getSerializable(k,String::class.java)?.let{ v -> Base64.getEncoder().encodeToString(v.toByteArray())}?:""
-                            extras += """["$k","$v"]"""
-                        } catch (_: Throwable) {
+                try {
+                    intent.extras?.let { bundle ->
+                        for (k in bundle.keySet()) {
+                            try {
+                                if (extras.isNotEmpty()) {
+                                    extras += ","
+                                }
+                                val v = bundle.getSerializable(k, String::class.java)?.let { v ->
+                                    Base64.getEncoder().encodeToString(v.toByteArray())
+                                } ?: ""
+                                extras += """["$k","$v"]"""
+                            } catch (_: Throwable) {
 
+                            }
                         }
                     }
+                } catch (_: Throwable) {
                 }
                 extras = "[$extras]"
 
@@ -1742,20 +1764,25 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 val action = intent.action ?: ""
                 val component = intent.component?.shortClassName ?: ""
                 val data = intent.dataString ?: ""
-                val packcage = intent.`package`?:""
+                val packcage = intent.`package` ?: ""
                 var extras = ""
-                intent.extras?.let {
-                    for (k in it.keySet()) {
-                        try {
-                            if (extras.isNotEmpty()) {
-                                extras += ","
-                            }
-                            val v = it.getSerializable(k,String::class.java)?.let{ v -> Base64.getEncoder().encodeToString(v.toByteArray())}?:""
-                            extras += """["$k","$v"]"""
-                        } catch (_: Throwable) {
+                try {
+                    intent.extras?.let { bundle ->
+                        for (k in bundle.keySet()) {
+                            try {
+                                if (extras.isNotEmpty()) {
+                                    extras += ","
+                                }
+                                val v = bundle.getSerializable(k, String::class.java)?.let { v ->
+                                    Base64.getEncoder().encodeToString(v.toByteArray())
+                                } ?: ""
+                                extras += """["$k","$v"]"""
+                            } catch (_: Throwable) {
 
+                            }
                         }
                     }
+                } catch (_: Throwable) {
                 }
                 extras = "[$extras]"
 
@@ -1788,23 +1815,28 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                 val action = intent.action ?: ""
                 val component = intent.component?.shortClassName ?: ""
                 val data = intent.dataString ?: ""
-                val packcage = intent.`package`?:""
+                val packcage = intent.`package` ?: ""
 //                if (data == "null") {
 //                    data = ""
 //                }
                 var extras = ""
-                intent.extras?.let {
-                    for (k in it.keySet()) {
-                        try {
-                            if (extras.isNotEmpty()) {
-                                extras += ","
-                            }
-                            val v = it.getSerializable(k,String::class.java)?.let{ v -> Base64.getEncoder().encodeToString(v.toByteArray())}?:""
-                            extras += """["$k","$v"]"""
-                        } catch (_: Throwable) {
+                try {
+                    intent.extras?.let { bundle ->
+                        for (k in bundle.keySet()) {
+                            try {
+                                if (extras.isNotEmpty()) {
+                                    extras += ","
+                                }
+                                val v = bundle.getSerializable(k, String::class.java)?.let { v ->
+                                    Base64.getEncoder().encodeToString(v.toByteArray())
+                                } ?: ""
+                                extras += """["$k","$v"]"""
+                            } catch (_: Throwable) {
 
+                            }
                         }
                     }
+                } catch (_: Throwable) {
                 }
                 extras = "[$extras]"
 
@@ -2083,6 +2115,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
 
         }
     }
+
     @XposedHooker
     class OnRegisterReceiver(private val magic: Int) : XposedInterface.Hooker {
         companion object {
@@ -2091,7 +2124,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
             fun beforeInvocation(callback: BeforeHookCallback): OnRegisterReceiver {
 
                 var actions = ""
-                for (action in (callback.args[1] as IntentFilter).actionsIterator()){
+                for (action in (callback.args[1] as IntentFilter).actionsIterator()) {
                     if (actions.isNotEmpty()) {
                         actions += ","
                     }
@@ -2118,6 +2151,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
 
         }
     }
+
     @XposedHooker
     class GenericHook(private val magic: Int) : XposedInterface.Hooker {
         companion object {
@@ -2659,7 +2693,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                     if (it.name == "bindService" || it.name == "bindServiceAsUser" || it.name == "bindIsolatedService") {
                         module.hook(it, BindServiceHook::class.java)
                     }
-                    if (it.name == "registerReceiver"){
+                    if (it.name == "registerReceiver") {
                         module.hook(it, OnRegisterReceiver::class.java)
                     }
                 }
@@ -2737,7 +2771,7 @@ class ModuleMain(base: XposedInterface, param: ModuleLoadedParam) : XposedModule
                                 break
                             }
                         }
-                    }else if (className.startsWith("kotlinx.coroutines.scheduling.")) {
+                    } else if (className.startsWith("kotlinx.coroutines.scheduling.")) {
                         for (m in clazz.declaredMethods) {
                             if (m.parameterCount >= 1) {
                                 m.parameterTypes[0]?.let {
@@ -3205,25 +3239,25 @@ private inline fun canary(): String? {
         }
 
         if (stackTraceString.contains("LSPHooker_") && stackTraceString.contains(".onReceive(")) {
-            return "1-"+stackTraceString.substringBefore("(").substringAfter("_")
+            return "1-" + stackTraceString.substringBefore("(").substringAfter("_")
         }
         if (stackTraceString.startsWith("LSPHooker_") && stackTraceString.contains(".doWork(")) {
-            return "2-"+stackTraceString.substringBefore("(").substringAfter("_")
+            return "2-" + stackTraceString.substringBefore("(").substringAfter("_")
         }
         if (stackTraceString.contains("LSPHooker_") && stackTraceString.contains(".onStartJob(")) {
-            return "3-"+stackTraceString.substringBefore("(").substringAfter("_")
+            return "3-" + stackTraceString.substringBefore("(").substringAfter("_")
         }
         if (stackTraceString.contains("LSPHooker_") && stackTraceString.contains(".onStartCommand(")) {
-            return "4-"+stackTraceString.substringBefore("(").substringAfter("_")
+            return "4-" + stackTraceString.substringBefore("(").substringAfter("_")
         }
         if (stackTraceString.contains("LSPHooker_") && stackTraceString.contains(".onBind(")) {
-            return "5-"+stackTraceString.substringBefore("(").substringAfter("_")
+            return "5-" + stackTraceString.substringBefore("(").substringAfter("_")
         }
         if (stackTraceString.contains("LSPHooker_") && stackTraceString.contains(".onRebind(")) {
-            return "6-"+stackTraceString.substringBefore("(").substringAfter("_")
+            return "6-" + stackTraceString.substringBefore("(").substringAfter("_")
         }
         if (stackTraceString.contains("LSPHooker_") && stackTraceString.contains(".onCreate(")) {
-            return "7-"+stackTraceString.substringBefore("(").substringAfter("_")
+            return "7-" + stackTraceString.substringBefore("(").substringAfter("_")
         }
 
     }
