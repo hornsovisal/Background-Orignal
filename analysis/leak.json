@@ -1,0 +1,146 @@
+{
+    "email": [
+        "jbondlink"
+    ],
+    "adid": [
+        "0a22a1cd-5218-43fa-017f-78e38c19f7cc",
+        "201d4bd4-4c7e-9bdb-1985-333d86c94026",
+        "47e8c1b6-53f7-a7b9-17a5-8dd9de0b8f96",
+        "9c136a14-0940-df13-d546-fda8d8f8464d",
+        "a006c1ba-3a40-63df-e19f-934e1f3ac8a8",
+        "a88a6860-015a-c02f-f4f7-a492cdfebce0",
+        "b78ddcea-4d8c-4ee0-8b86-56db1faa96a1",
+        "b96ac2d0-9c1c-9ca3-1b60-41fc5209cd2a",
+        "c7d124d1-f8af-4245-ad6e-0ed6bb1cd1a1",
+        "e27faaa3-4df7-4111-8c72-fd1c8e141344",
+        "eb4e606f-84cb-4047-87ab-67c810ec8e38",
+        "f9d23329-d7c2-48c2-b4e3-751a90477e99"
+    ],
+    "imei": [
+        "359145617716444",
+        "359145617716329"
+    ],
+    "contact_phone": [
+        "250-8841"
+    ],
+    "contact_name": [
+        "jamionfsaa"
+    ],
+    "phone_number": [
+        "134-0157",
+        "445-1686"
+    ],
+    "call_history_number": [
+        "872-2422"
+    ],
+    "sms_number": [
+        "242227"
+    ],
+    "sms_content": [
+        "CIBC will never call you for this code"
+    ],
+    "imsi": [
+        "424021219678632",
+        "302610943928713"
+    ],
+    "iccid": [
+        "89302610105029243352",
+        "89971122127409125754"
+    ],
+    "serial": [
+        "29191fdh200cm3",
+        "29221fdh2005sz"
+    ],
+    "abi": [
+        "arm64-v8a"
+    ],
+    "model": [
+        "pixel 7"
+    ],
+    "timezone": [
+        "america/toronto"
+    ],
+    "resolution": [
+        "1080x2400",
+        "1080*2400"
+    ],
+    "cpu": [
+        "gs201"
+    ],
+    "device_name": [
+        "panther"
+    ],
+    "finger_print": [
+        "google/panther/panther:13/tq3a.230901.001/10750268:user/release-keys",
+        "google/panther/panther:13/tq3a.230901.001.c2/10753682:user/release-keys"
+    ],
+    "bootloader": [
+        "cloudripper-1.0-9894666"
+    ],
+    "operator": [
+        "lucky",
+        "etisalat"
+    ],
+    "displayid": [
+        "tq3a.230901.001.c2",
+        "tq3a.230901.001"
+    ],
+    "wifi_mac": [
+        "d4:3a:2c:77:bd:2a",
+        "d4:3a:2c:77:bd:cf"
+    ],
+    "wifi_ip": [
+        "172.30.143.71",
+        "172.30.143.70"
+    ],
+    "gateway": [
+        "172.30.143.1"
+    ],
+    "proxy_addr": [
+        "172.30.143.74",
+        "172.30.143.86"
+    ],
+    "my_wifi_essid": [
+        "droid-ev10173"
+    ],
+    "my_wifi_bssid": [
+        "c8:f9:f9:a0:e9:33",
+        "c8:f9:f9:a0:e9:3c"
+    ],
+    "other_wifi_essid": [
+        "concordiaguest"
+    ],
+    "other_wifi_bssid": [
+        "00:22:55:74:f7:82",
+        "00:22:90:a1:36:24",
+        "00:22:90:ea:d9:73",
+        "c8:f9:f9:a0:e9:32",
+        "c8:f9:f9:a0:e9:3d",
+        "c8:f9:f9:a1:35:62"
+    ],
+    "wifi_ipv6": [
+        "fe80::c918:39c6:6af9:dddc",
+        "fe80::431:982f:1ff2:fe62"
+    ],
+    "device_apps": [
+        "ca.concordia.madiba.cryptologger"
+    ],
+    "latitude4": [
+        "45.4956"
+    ],
+    "latitude3": [
+        "45.495"
+    ],
+    "latitude2": [
+        "45.49"
+    ],
+    "langitude4": [
+        "-73.5808"
+    ],
+    "langitude3": [
+        "-73.580"
+    ],
+    "langitude2": [
+        "-73.58"
+    ]
+}

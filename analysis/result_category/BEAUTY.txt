@@ -1,0 +1,113 @@
+&IMEI&4&0&4&4&0&0&0&0&0&0&0&0&4&0&4\\
+&Device Serial&3&0&3&3&0&0&0&0&0&0&0&0&3&0&3\\
+&Device ID&25&0&20&25&8&0&3&8&0&0&0&0&28&0&28\\
+&Advertising ID&139&20&102&146&60&3&18&60&7&2&1&9&159&22&165\\
+&Bootloader&1&0&1&1&0&0&0&0&0&0&0&0&1&0&1\\
+&Fingerprint&23&0&5&23&80&0&26&80&150&0&95&150&188&0&188\\
+&CPU Model&0&0&0&0&8&0&8&8&0&0&0&0&8&0&8\\
+&Display ID&390&23&130&390&210&3&11&210&163&2&1&163&404&25&404\\
+&Device Name&77&11&36&87&94&2&27&95&150&2&76&151&225&13&228\\
+&Device Resolution&5&0&4&5&1&0&0&1&0&0&0&0&5&0&5\\
+&Device ABI&19&12&22&28&31&2&28&32&2&2&2&4&49&14&58\\
+&Device Model&392&26&128&392&218&5&10&218&163&3&1&163&405&28&405\\
+&Device Timezone&25&0&22&25&24&0&21&24&2&0&2&2&48&0&48\\
+&Operator&11&11&17&21&9&2&9&11&0&2&0&2&18&13&30\\
+&ICCID&0&0&0&0&0&0&0&0&0&0&0&0&0&0&0\\
+&IMSI&3&0&3&3&1&0&1&1&0&0&0&0&4&0&4\\
+&Device WiFi IP&0&0&0&0&0&0&0&0&0&0&0&0&0&0&0\\
+&Device WiFi IPv6&3&0&3&3&0&0&0&0&0&0&0&0&3&0&3\\
+&Default Gateway IP&0&0&0&0&0&0&0&0&0&0&0&0&0&0&0\\
+&On Device Proxy Address&7&0&1&7&58&0&50&58&20&0&16&20&76&0&76\\
+&Router ESSID&0&0&0&0&0&0&0&0&0&0&0&0&0&0&0\\
+&Router BSSID&0&0&0&0&0&0&0&0&0&0&0&0&0&0&0\\
+&Neighbor Router ESSID&0&0&0&0&0&0&0&0&0&0&0&0&0&0&0\\
+&Neighbor Router BSSID&0&0&0&0&0&0&0&0&0&0&0&0&0&0&0\\
+&GPS ($\leq$7 meter accuracy)&4&0&3&4&2&0&1&2&0&0&0&0&5&0&5\\
+&GPS (78 meter accuracy)&4&0&3&4&2&0&1&2&0&0&0&0&5&0&5\\
+&GPS (787 meter accuracy)&4&0&3&4&2&0&1&2&0&0&0&0&5&0&5\\
+&List of Device Apps&0&0&0&0&0&0&0&0&0&0&0&0&0&0&0\\
+&Phone Number&3&0&3&3&0&0&0&0&0&0&0&0&3&0&3\\
+&Call History Number&0&0&0&0&0&0&0&0&0&0&0&0&0&0&0\\
+&Contacts Name&3&0&3&3&0&0&0&0&0&0&0&0&3&0&3\\
+&Contacts Number&0&0&0&0&0&0&0&0&0&0&0&0&0&0&0\\
+&Device Email&3&0&3&3&6&0&6&6&0&0&0&0&9&0&9\\
+-------------------
+leak visible = GPS: 4
+leak visible = Device: 394
+leak visible = Network: 26
+leak visible = User Assets: 3
+overal leaks visible = 394
+leak invisible = Device: 232
+leak invisible = User Assets: 6
+leak invisible = Network: 66
+leak invisible = GPS: 2
+overal leaks invisible = 232
+leak works = Device: 163
+leak works = Network: 22
+overal leaks works = 163
+leak works invisible = User Assets: 6
+leak works invisible = GPS: 2
+leak works invisible = Device: 287
+leak works invisible = Network: 85
+overal leaks works invisible = 287
+leak any = Device: 405
+leak any = GPS: 5
+leak any = User Assets: 9
+leak any = Network: 96
+overal any = 405
+-------------------
+Visible Total: 394, Invisible Total: 232, Background Total: 163, Overall Total: 405
+&(E)stablished&0&3&142&0&2&147\\
+&(D)ropped&0&0&2&0&0&2\\
+&Common&0&0&1&0&0&1\\
+&Total&0&3&143&0&2&148\\
+&(E)stablished&0&2&66&4&4&75\\
+&(D)ropped&0&0&2&0&0&2\\
+&Common&0&0&0&0&0&0\\
+&Total&0&2&68&4&4&77\\
+&(E)stablished&0&3&157&4&6&166\\
+&(D)ropped&0&0&4&0&0&4\\
+&Common&0&0&1&0&0&2\\
+&Total&0&3&159&4&6&168\\
+visible_overal_works:143,invisible_overal_works:68
+visible_overal_any:148,invisible_overal_any:77
+visible_overal_any - visible_overal_works:5
+visible_overal_works - visible_overal_any:0
+invisible_overal_any - invisible_overal_works:9
+invisible_overal_works - invisible_overal_any:0
+Visible Exclusive&0&1&91&0&2&94\\
+Invisible Exclusive&0&0&16&4&4&23\\
+------
+Network Capability&11&125&0&0&0&0&0&4&140
+Important&2&0&0&0&0&0&0&0&2
+Overall&12&125&0&0&0&0&0&4&141
+android.intent.action.BOOT_COMPLETED - 3 true
+android.app.action.APP_BLOCK_STATE_CHANGED - 1 true
+Parents with the same parent {}
+------
+Apps Established Connections 461
+Apps Established Connections Visible 404
+Apps Established Connections Invisible 433
+Apps Established Connections Background 168
+Apps Established Connections background + invisible 433
+Apps Established Connections Services 3
+Apps Established Connections Broadcasts 9
+Apps explicit intent from implicit 0
+Apps explicit intent from any 0
+Apps explicit intent from service 0
+Apps explicit intent from jobs 0
+Apps successfuly established at least one connection 418
+Domains with at least 10 apps - Wroks
+16 - web.facebook.com:443
+All Third Party 402
+Invisible Third Party 292
+Visible Third Party 384
+Works Third Party 148
+Invisible works Third Party 333
+All Invisible Successful Connection 316
+All Visible Successful Connection 400
+All Works Successful Connection 166
+All Invisible Works Successful Connection 355
+Domains 16
+Domains with at least 10 apps - Invisible
+Domains with at least 10 apps - Visible

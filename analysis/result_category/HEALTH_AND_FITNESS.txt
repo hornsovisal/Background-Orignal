@@ -1,0 +1,125 @@
+&IMEI&4&0&4&4&1&0&1&1&1&0&1&1&6&0&6\\
+&Device Serial&4&0&4&4&0&0&0&0&0&0&0&0&4&0&4\\
+&Device ID&53&5&35&55&24&1&10&24&16&0&4&16&68&5&70\\
+&Advertising ID&4&1&4&4&0&0&0&0&0&0&0&0&4&1&4\\
+&Bootloader&2&0&1&2&2&0&1&2&1&0&1&1&4&0&4\\
+&Fingerprint&49&1&12&50&143&0&31&143&276&0&157&276&328&1&328\\
+&CPU Model&5&1&6&6&6&0&6&6&1&0&1&1&12&1&13\\
+&Display ID&388&44&43&388&300&8&14&300&293&3&7&293&419&47&419\\
+&Device Name&132&41&27&152&169&2&31&170&279&2&99&279&353&41&353\\
+&Device Resolution&10&0&10&10&1&0&1&1&0&0&0&0&11&0&11\\
+&Device ABI&53&39&57&88&60&2&34&61&12&2&3&13&102&39&126\\
+&Device Model&389&50&39&389&313&13&14&313&293&4&7&293&420&51&420\\
+&Device Timezone&98&0&76&98&42&0&20&42&4&0&1&4&120&0&120\\
+&Operator&23&40&46&51&4&2&3&6&1&2&1&3&28&40&55\\
+&ICCID&0&0&0&0&0&0&0&0&1&0&1&1&1&0&1\\
+&IMSI&5&0&5&5&0&0&0&0&1&0&1&1&6&0&6\\
+&Device WiFi IP&1&0&1&1&0&0&0&0&0&0&0&0&1&0&1\\
+&Device WiFi IPv6&4&0&4&4&0&0&0&0&0&0&0&0&4&0&4\\
+&Default Gateway IP&0&0&0&0&0&0&0&0&0&0&0&0&0&0&0\\
+&On Device Proxy Address&22&0&7&22&132&0&103&132&76&0&57&76&198&0&198\\
+&Router ESSID&1&0&1&1&0&0&0&0&0&0&0&0&1&0&1\\
+&Router BSSID&2&0&1&2&1&0&0&1&0&0&0&0&2&0&2\\
+&Neighbor Router ESSID&1&0&1&1&0&0&0&0&0&0&0&0&1&0&1\\
+&Neighbor Router BSSID&1&0&1&1&0&0&0&0&0&0&0&0&1&0&1\\
+&GPS ($\leq$7 meter accuracy)&17&0&13&17&5&0&1&5&0&0&0&0&18&0&18\\
+&GPS (78 meter accuracy)&17&0&13&17&5&0&1&5&0&0&0&0&18&0&18\\
+&GPS (787 meter accuracy)&17&0&13&17&5&0&1&5&0&0&0&0&18&0&18\\
+&List of Device Apps&0&0&0&0&0&0&0&0&0&0&0&0&0&0&0\\
+&Phone Number&4&0&4&4&0&0&0&0&1&0&1&1&5&0&5\\
+&Call History Number&0&0&0&0&0&0&0&0&0&0&0&0&0&0&0\\
+&Contacts Name&4&0&4&4&0&0&0&0&0&0&0&0&4&0&4\\
+&Contacts Number&0&0&0&0&0&0&0&0&0&0&0&0&0&0&0\\
+&Device Email&7&0&7&7&5&0&5&5&1&0&1&1&13&0&13\\
+-------------------
+leak visible = Device: 390
+leak visible = Network Location: 2
+leak visible = Network: 70
+leak visible = User Assets: 7
+leak visible = GPS: 17
+overal leaks visible = 390
+leak invisible = Network: 134
+leak invisible = User Assets: 5
+leak invisible = Network Location: 1
+leak invisible = Device: 314
+leak invisible = GPS: 5
+overal leaks invisible = 314
+leak works = Device: 294
+leak works = Network: 78
+leak works = User Assets: 2
+overal leaks works = 294
+leak works invisible = Device: 378
+leak works invisible = Network: 192
+leak works invisible = GPS: 5
+leak works invisible = User Assets: 7
+leak works invisible = Network Location: 1
+overal leaks works invisible = 378
+leak any = Device: 417
+leak any = User Assets: 14
+leak any = Network: 221
+leak any = Network Location: 2
+leak any = GPS: 18
+overal any = 417
+-------------------
+Visible Total: 390, Invisible Total: 314, Background Total: 294, Overall Total: 420
+&(E)stablished&1&29&256&0&6&268\\
+&(D)ropped&0&6&1&0&0&7\\
+&Common&0&0&1&0&0&5\\
+&Total&1&35&256&0&6&270\\
+&(E)stablished&3&27&103&6&18&135\\
+&(D)ropped&0&5&4&4&6&16\\
+&Common&0&2&2&4&5&11\\
+&Total&3&30&105&6&19&140\\
+&(E)stablished&3&37&280&6&21&298\\
+&(D)ropped&0&8&5&4&6&20\\
+&Common&0&2&3&4&5&18\\
+&Total&3&42&280&6&22&300\\
+visible_overal_works:256,invisible_overal_works:105
+visible_overal_any:270,invisible_overal_any:140
+visible_overal_any - visible_overal_works:14
+visible_overal_works - visible_overal_any:0
+invisible_overal_any - invisible_overal_works:35
+invisible_overal_works - invisible_overal_any:0
+Visible Exclusive&0&12&175&0&3&183\\
+Invisible Exclusive&2&7&24&6&16&50\\
+------
+Overall&29&199&1&3&0&0&0&1&233
+Network Capability&26&199&1&3&0&0&0&1&230
+Charging&1&0&0&0&0&0&0&0&1
+Important&5&0&0&0&0&0&0&0&5
+Battery&1&0&0&0&0&0&0&0&1
+Device Idle&0&0&0&3&0&0&0&0&3
+android.app.action.APP_BLOCK_STATE_CHANGED - 2 true
+android.intent.action.TIME_SET - 1 true
+android.intent.action.BOOT_COMPLETED - 2 true
+android.intent.action.TIMEZONE_CHANGED - 1 true
+android.intent.action.MY_PACKAGE_REPLACED - 2 true
+Service&0&1&0&1
+Overal&0&1&0&1
+Parents with the same parent {}
+------
+Apps Established Connections 490
+Apps Established Connections Visible 407
+Apps Established Connections Invisible 459
+Apps Established Connections Background 300
+Apps Established Connections background + invisible 459
+Apps Established Connections Services 45
+Apps Established Connections Broadcasts 25
+Apps explicit intent from implicit 0
+Apps explicit intent from any 0
+Apps explicit intent from service 0
+Apps explicit intent from jobs 0
+Apps successfuly established at least one connection 439
+Domains with at least 10 apps - Wroks
+All Third Party 424
+Invisible Third Party 347
+Visible Third Party 389
+Works Third Party 280
+Invisible works Third Party 391
+All Invisible Successful Connection 375
+All Visible Successful Connection 396
+All Works Successful Connection 298
+All Invisible Works Successful Connection 405
+Domains 0
+Domains with at least 10 apps - Invisible
+Domains with at least 10 apps - Visible

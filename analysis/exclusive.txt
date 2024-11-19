@@ -1,0 +1,121 @@
+- No
+@ Yes - Same component
++! Yes - Different component
++!@ Yes - Different component, same component
+
+
+
+my_wifi_essid
+- com.kcell.myactiv
+- it.nicola.calcioveneto
+- org.androworks.klara
+- com.talksport.tsliveen
+- org.hicham.salaat
+- org.androworks.meteorgram
+- com.froogloid.kring.google.zxing.client.android
+- com.isharing.isharing
+- net.difer.weather
++! com.williamking.whattheforecast
+@ jp.wifishare.townwifi
+@ com.photo.gallery.photo.albums
+
+
+my_wifi_bssid
+- com.kcell.myactiv
+- com.williamking.whattheforecast
+- it.nicola.calcioveneto
+- org.androworks.meteorgram
+- net.difer.weather
+- org.androworks.klara
+- jp.wifishare.townwifi
+- com.froogloid.kring.google.zxing.client.android
+- com.isharing.isharing
+- org.hicham.salaat
+
+other_wifi_essid
+- com.kcell.myactiv
+- com.kcell.myactiv
+
+call_history_number
+- com.nfo.me.android
+
+phone_number
+- com.madarsoft.fitness
+- com.lcacApp
+- de.resolution.yf_android
+- com.texty.sms
+
+device_apps
+- com.sneig.livedrama
+- com.digibites.accubattery
+- smart.tv.wifi.remote.control.samcontrol
+
+email
+- com.remitly.androidapp
+- com.ego.android
+- com.chatous.chatous
++! com.weloveapps.truelove
+- com.gps.maps.me.city.navigation.metro.transit.navigation.live.traffic.weather
+- fitness.home.workout.weight.loss
+- com.caisseepargne.android.mobilebanking
+- com.wefi.wefi
+- se.expressen.launcher
+- net.androgames.level
+- com.antiland
+- vsin.t16_funny_photo
+- com.kouzoh.mercari
+- com.videocallrecorder.screenrecording.callrecorder.voicecallrecorder.videorecorde
+- com.twitter.android
+- com.bit.androsmart.kbinapp
+- com.truecaller.guardians
+- com.slowlyapp
+- com.simplemobiletools.calendar
+- com.music.slideshow.videoeditor.videomaker
+- com.afklm.mobile.android.gomobile.klm
+- com.hetweer.in.nl
+- org.androworks.meteor
+- com.simka.ai.children.bed.stories.android
+
+Coordinates
+@ com.lenovo.anyshare.gps
++! com.hardees.ordering
++!@ com.fundevs.app.mediaconverte
+@ com.freerange360.mpp.GOAL
+- com.blablalines
+@ ch.srf.meteo
+- com.accuweather.android
+@ com.adopteunmec.androidfr
+- com.mirrorai.app
+@ com.photo.gallery.photo.albums
+@ com.ripplemotion.android.EssenceLite
+@ com.nperf.tester
++! com.williamking.whattheforecast
++!@ com.wishabi.flipp
+@ con.hotspot.vpn.free.master !
+- dk.dsb.nda.android
+@ com.loggi.driverapp
+@ ir.torob
+- com.atom.barev
+- shareit.lite
+- net.hubalek.android.apps.barometer
+- com.hcom.android
+- com.icicibank.ibizz
+- com.lutech.callcolor
+- com.nook.app
+- it.nicola.calcioveneto
+- jp.wifishare.townwifi
+- net.androgames.level
++! com.froogloid.kring.google.zxing.client.android
++! com.homeretailgroup.argos.android
++! com.isharing.isharing
+@ com.mobile.android.patriots
+@ com.tokopedia.sellerapp
+@ ie.donedeal.android
+@ info.myapp.allemailaccess
++! net.difer.weather
++! org.androworks.klara
++! ovh.sauzanaprod.meteoouzbekistan
+@ personalstickermaker.whatsapp.stickers.wastikerapps
++! pl.lawiusz.funnyweather.release
+@ ru.napoleonit.kb
+@ videomedia.photovideomaker

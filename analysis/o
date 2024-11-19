@@ -1,0 +1,101 @@
+my_wifi_essid - com.kcell.myactiv - Network Location
+my_wifi_essid - com.photo.gallery.photo.albums - Network Location
+my_wifi_essid - com.froogloid.kring.google.zxing.client.android - Network Location
+my_wifi_essid - jp.wifishare.townwifi - Network Location
+my_wifi_bssid - com.froogloid.kring.google.zxing.client.android - Network Location
+my_wifi_bssid - com.kcell.myactiv - Network Location
+my_wifi_bssid - jp.wifishare.townwifi - Network Location
+other_wifi_essid - com.kcell.myactiv - Network Location
+other_wifi_bssid - com.kcell.myactiv - Network Location
+gps4 - ru.napoleonit.kb - GPS
+gps4 - jp.wifishare.townwifi - GPS
+gps4 - com.hcom.android - GPS
+gps4 - dk.dsb.nda.android - GPS
+gps4 - com.loggi.driverapp - GPS
+gps4 - info.myapp.allemailaccess - GPS
+gps4 - com.icicibank.ibizz - GPS
+gps4 - com.blablalines - GPS
+gps4 - com.atom.barev - GPS
+gps4 - com.adopteunmec.androidfr - GPS
+gps4 - com.accuweather.android - GPS
+gps4 - com.photo.gallery.photo.albums - GPS
+gps4 - ir.torob - GPS
+gps4 - com.wishabi.flipp - GPS
+gps4 - pl.lawiusz.funnyweather.release - GPS
+gps4 - net.hubalek.android.apps.barometer - GPS
+gps4 - com.ripplemotion.android.EssenceLite - GPS
+gps3 - com.homeretailgroup.argos.android - GPS
+gps3 - info.myapp.allemailaccess - GPS
+gps3 - com.loggi.driverapp - GPS
+gps3 - net.hubalek.android.apps.barometer - GPS
+gps3 - ie.donedeal.android - GPS
+gps3 - pl.lawiusz.funnyweather.release - GPS
+gps3 - com.hardees.ordering - GPS
+gps3 - com.wishabi.flipp - GPS
+gps3 - com.blablalines - GPS
+gps3 - com.photo.gallery.photo.albums - GPS
+gps3 - com.adopteunmec.androidfr - GPS
+gps3 - com.tokopedia.sellerapp - GPS
+gps3 - jp.wifishare.townwifi - GPS
+gps3 - com.accuweather.android - GPS
+gps3 - ir.torob - GPS
+gps3 - com.atom.barev - GPS
+gps3 - com.hcom.android - GPS
+gps3 - ru.napoleonit.kb - GPS
+gps3 - com.icicibank.ibizz - GPS
+gps3 - com.ripplemotion.android.EssenceLite - GPS
+gps3 - dk.dsb.nda.android - GPS
+gps2 - ie.donedeal.android - GPS
+gps2 - com.wishabi.flipp - GPS
+gps2 - ch.srf.meteo - GPS
+gps2 - com.loggi.driverapp - GPS
+gps2 - com.atom.barev - GPS
+gps2 - ru.napoleonit.kb - GPS
+gps2 - ir.torob - GPS
+gps2 - com.icicibank.ibizz - GPS
+gps2 - com.tokopedia.sellerapp - GPS
+gps2 - com.blablalines - GPS
+gps2 - com.mirrorai.app - GPS
+gps2 - com.mobile.android.patriots - GPS
+gps2 - com.homeretailgroup.argos.android - GPS
+gps2 - com.nook.app - GPS
+gps2 - com.adopteunmec.androidfr - GPS
+gps2 - net.hubalek.android.apps.barometer - GPS
+gps2 - com.ripplemotion.android.EssenceLite - GPS
+gps2 - com.accuweather.android - GPS
+gps2 - com.hcom.android - GPS
+gps2 - com.ertanto.kompas.official - GPS
+gps2 - com.lutech.callcolor - GPS
+gps2 - dk.dsb.nda.android - GPS
+gps2 - personalstickermaker.whatsapp.stickers.wastikerapps - GPS
+gps2 - com.hardees.ordering - GPS
+gps2 - com.photo.gallery.photo.albums - GPS
+gps2 - jp.wifishare.townwifi - GPS
+gps2 - pl.lawiusz.funnyweather.release - GPS
+gps2 - info.myapp.allemailaccess - GPS
+device_apps - smart.tv.wifi.remote.control.samcontrol - User Assets
+device_apps - com.sneig.livedrama - User Assets
+device_apps - com.digibites.accubattery - User Assets
+phone_number - com.texty.sms - User Assets
+phone_number - com.madarsoft.fitness - User Assets
+phone_number - com.lcacApp - User Assets
+call_history_number - com.nfo.me.android - User Assets
+email - vsin.t16_funny_photo - User Assets
+email - com.music.slideshow.videoeditor.videomaker - User Assets
+email - com.afklm.mobile.android.gomobile.klm - User Assets
+email - com.gps.maps.me.city.navigation.metro.transit.navigation.live.traffic.weather - User Assets
+email - com.antiland - User Assets
+email - com.truecaller.guardians - User Assets
+email - com.ego.android - User Assets
+email - fitness.home.workout.weight.loss - User Assets
+email - com.kouzoh.mercari - User Assets
+email - com.bit.androsmart.kbinapp - User Assets
+email - com.videocallrecorder.screenrecording.callrecorder.voicecallrecorder.videorecorde - User Assets
+email - com.slowlyapp - User Assets
+email - com.twitter.android - User Assets
+email - com.caisseepargne.android.mobilebanking - User Assets
+email - com.simka.ai.children.bed.stories.android - User Assets
+email - se.expressen.launcher - User Assets
+email - com.remitly.androidapp - User Assets
+email - com.simplemobiletools.calendar - User Assets
+email - com.hetweer.in.nl - User Assets
