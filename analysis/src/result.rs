@@ -3,7 +3,9 @@ use std::{
     env,
 };
 
-use db::{BackgroundWork, NetworkConnection, RuntimeRegisteredReceiver, ServiceMethod, Trigger};
+use db::{
+    BackgroundWork, Leak, NetworkConnection, RuntimeRegisteredReceiver, ServiceMethod, Trigger,
+};
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 mod db;
 mod system_intents;
@@ -143,7 +145,30 @@ const IMPLICIT: [&str; 38] = [
     "android.provider.Telephony.WAP_PUSH_RECEIVED",
 ];
 
-
+fn get_leak_category(leak: &Leak) -> &'static str {
+    let value = leak.leak.as_str();
+    if DEVICE_INFO.contains(&value) {
+        "Device"
+    } else if NETWORK_INFO.contains(&value) {
+        "Network"
+    } else if NETWORK_LOCATION_INFO.contains(&value)
+        || [
+            "latitude4",
+            "langitude4",
+            "latitude3",
+            "langitude3",
+            "latitude2",
+            "langitude2",
+        ]
+        .contains(&value)
+    {
+        "Location"
+    } else if USER_ASSETS.contains(&value) {
+        "User Assets"
+    } else {
+        "Other"
+    }
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -315,7 +340,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut receivers_table: HashMap<String, HashSet<(String, String)>> = HashMap::new();
     let mut work_parent: HashMap<&str, [HashSet<String>; 4]> = HashMap::new();
     let mut parents_same_parent = HashSet::new();
-    
+
+    let mut job_network_leak: HashMap<String, HashSet<String>> = HashMap::new();
+    let mut job_battery_leak: HashMap<String, HashSet<String>> = HashMap::new();
+    let mut job_charging_leak: HashMap<String, HashSet<String>> = HashMap::new();
+    let mut job_device_idel_leak: HashMap<String, HashSet<String>> = HashMap::new();
+    let mut job_storage_leak: HashMap<String, HashSet<String>> = HashMap::new();
+    let mut job_expediate_leak: HashMap<String, HashSet<String>> = HashMap::new();
+    let mut job_important_leak: HashMap<String, HashSet<String>> = HashMap::new();
+    // let mut job_overal_leak: HashMap<String, HashSet<String>> = HashMap::new();
+
+    let mut broadcast_explicit_leak: HashMap<String, HashSet<String>> = HashMap::new();
+    let mut broadcast_implicit_leak: HashMap<String, HashSet<String>> = HashMap::new();
+    let mut broadcast_undocumented_implicit_leak: HashMap<String, HashSet<String>> = HashMap::new();
+
+    let mut service_foreground_leak: HashMap<String, HashSet<String>> = HashMap::new();
+    let mut service_background_leak: HashMap<String, HashSet<String>> = HashMap::new();
+
     // let mut on_create_classes: HashSet<String> = HashSet::new();
     let mut leak_items = HashSet::new();
 
@@ -404,7 +445,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 if let Some((_class, _method)) = &bw.parent {
                                     if class == _class {
                                         // dbg!(&app_name, &class, &method);
-                                        parents_same_parent.insert((app_name.clone(),class.to_string(), method.to_string(),_method.to_string()));
+                                        parents_same_parent.insert((
+                                            app_name.clone(),
+                                            class.to_string(),
+                                            method.to_string(),
+                                            _method.to_string(),
+                                        ));
                                     }
                                     match _method.as_str() {
                                         "onCreate" | "onStartCommand" | "onBind" | "onRebind" => {
@@ -459,8 +505,47 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     foreground_classes.insert(class.to_string());
                                     println!(
                                         "{} - {:?} - {:?} - {:?} ",
-                                        app_name, class, connection.destination_addr, connection.leaks
+                                        app_name,
+                                        class,
+                                        connection.destination_addr,
+                                        connection.leaks
                                     );
+                                }
+
+                                for l in &connection.leaks {
+                                    let leak_type = get_leak_category(&l);
+                                    if leak_type == "Other" {
+                                        continue;
+                                    }
+                                    if *foreground {
+                                        service_foreground_leak
+                                            .entry(leak_type.to_string())
+                                            .and_modify(|leak| {
+                                                leak.insert(app_name.clone());
+                                            })
+                                            .or_insert_with(|| {
+                                                let mut set = HashSet::new();
+                                                set.insert(app_name.clone());
+                                                set
+                                            });
+                                    } else {
+                                        service_background_leak
+                                            .entry(leak_type.to_string())
+                                            .and_modify(|leak| {
+                                                leak.insert(app_name.clone());
+                                            })
+                                            .or_insert_with(|| {
+                                                let mut set = HashSet::new();
+                                                set.insert(app_name.clone());
+                                                set
+                                            });
+                                    };
+
+                                    // let leak_entry = service_leak_entry
+                                    //     .or_insert(HashSet::new())
+                                    //     .entry(leak_type.to_string())
+                                    //     .or_insert(HashSet::new());
+                                    // leak_entry.insert(l.leak.clone());
                                 }
 
                                 match (visible, foreground) {
@@ -555,6 +640,47 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 })
                                 .collect::<Vec<_>>()
                             {
+                                for l in &connection.leaks {
+                                    let leak_type = get_leak_category(&l);
+                                    if leak_type == "Other" {
+                                        continue;
+                                    }
+                                    if NEW_IMPLICIT.contains(&intent.action.as_str()) {
+                                        broadcast_undocumented_implicit_leak
+                                            .entry(leak_type.to_string())
+                                            .and_modify(|leak| {
+                                                leak.insert(app_name.clone());
+                                            })
+                                            .or_insert_with(|| {
+                                                let mut set = HashSet::new();
+                                                set.insert(app_name.clone());
+                                                set
+                                            });
+                                    } else if IMPLICIT.contains(&intent.action.as_str()) {
+                                        broadcast_implicit_leak
+                                            .entry(leak_type.to_string())
+                                            .and_modify(|leak| {
+                                                leak.insert(app_name.clone());
+                                            })
+                                            .or_insert_with(|| {
+                                                let mut set = HashSet::new();
+                                                set.insert(app_name.clone());
+                                                set
+                                            });
+                                    } else {
+                                        broadcast_explicit_leak
+                                            .entry(leak_type.to_string())
+                                            .and_modify(|leak| {
+                                                leak.insert(app_name.clone());
+                                            })
+                                            .or_insert_with(|| {
+                                                let mut set = HashSet::new();
+                                                set.insert(app_name.clone());
+                                                set
+                                            });
+                                    }
+                                }
+
                                 if NEW_IMPLICIT.contains(&intent.action.as_str())
                                     || IMPLICIT.contains(&intent.action.as_str())
                                 // intent
@@ -741,11 +867,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 if let Some(Trigger::Job(j)) = &bw.trigger {
                                     if let Some(t) = &j.time_driven_job {
                                         if let Some(e) = &j.event_driven_job {
+                                            let mut job_type = Vec::new();
                                             let time_type = t.time_slot() as usize;
                                             if !e.required_network_transport_types.is_empty() {
                                                 let r = jobs_table
                                                     .entry("Network Type")
                                                     .or_insert(Default::default());
+                                                job_type.push("Network Type");
                                                 r[time_type].insert(app_name.clone());
                                                 r[8].insert(app_name.clone());
                                             }
@@ -767,13 +895,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                 let r = jobs_table
                                                     .entry("Network Capability")
                                                     .or_insert(Default::default());
+                                                job_type.push("Network Capability");
                                                 r[time_type].insert(app_name.clone());
+                                                // for l in &connection.leaks{
+                                                //     let o = get_leak_category(&l);
+                                                //     dbg!(&app_name, &o, &l.leak);
+                                                // }
+                                                // dbg!(&connection.leaks);
                                                 r[8].insert(app_name.clone());
                                             }
                                             if e.is_require_battery_not_low {
                                                 let r = jobs_table
                                                     .entry("Battery")
                                                     .or_insert(Default::default());
+                                                job_type.push("Battery");
                                                 r[time_type].insert(app_name.clone());
                                                 r[8].insert(app_name.clone());
                                             }
@@ -781,6 +916,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                 let r = jobs_table
                                                     .entry("Charging")
                                                     .or_insert(Default::default());
+                                                job_type.push("Charging");
                                                 r[time_type].insert(app_name.clone());
                                                 r[8].insert(app_name.clone());
                                             }
@@ -788,6 +924,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                 let r = jobs_table
                                                     .entry("Device Idle")
                                                     .or_insert(Default::default());
+                                                job_type.push("Device Idle");
                                                 r[time_type].insert(app_name.clone());
                                                 r[8].insert(app_name.clone());
                                             }
@@ -795,6 +932,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                 let r = jobs_table
                                                     .entry("Storage")
                                                     .or_insert(Default::default());
+                                                job_type.push("Storage");
                                                 r[time_type].insert(app_name.clone());
                                                 r[8].insert(app_name.clone());
                                             }
@@ -802,6 +940,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                 let r = jobs_table
                                                     .entry("Content")
                                                     .or_insert(Default::default());
+                                                // job_type.push("Content");
                                                 r[time_type].insert(app_name.clone());
                                                 r[8].insert(app_name.clone());
                                             }
@@ -809,6 +948,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                 let r = jobs_table
                                                     .entry("Expedited")
                                                     .or_insert(Default::default());
+                                                job_type.push("Expedited");
                                                 r[time_type].insert(app_name.clone());
                                                 r[8].insert(app_name.clone());
                                             }
@@ -816,6 +956,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                 let r = jobs_table
                                                     .entry("Important")
                                                     .or_insert(Default::default());
+                                                job_type.push("Important");
                                                 r[time_type].insert(app_name.clone());
                                                 r[8].insert(app_name.clone());
                                             }
@@ -824,6 +965,114 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                                 .or_insert(Default::default());
                                             r[time_type].insert(app_name.clone());
                                             r[8].insert(app_name.clone());
+                                            for l in &connection.leaks {
+                                                let leak_type = get_leak_category(&l);
+                                                if leak_type == "Other" {
+                                                    continue;
+                                                }
+
+                                                for j in &job_type {
+                                                    // if *j == "Overall" {
+                                                    //     job_overal_leak
+                                                    //         .entry(leak_type.to_string())
+                                                    //         .and_modify(|e| {
+                                                    //             e.insert(app_name.clone());
+                                                    //         })
+                                                    //         .or_insert_with(|| {
+                                                    //             let mut s = HashSet::new();
+                                                    //             s.insert(app_name.clone());
+                                                    //             s
+                                                    //         });
+                                                    // }
+                                                    if *j == "Network Type"
+                                                        || *j == "Network Capability"
+                                                    {
+                                                        job_network_leak
+                                                            .entry(leak_type.to_string())
+                                                            .and_modify(|e| {
+                                                                e.insert(app_name.clone());
+                                                            })
+                                                            .or_insert_with(|| {
+                                                                let mut s = HashSet::new();
+                                                                s.insert(app_name.clone());
+                                                                s
+                                                            });
+                                                    }
+
+                                                    if *j == "Battery" {
+                                                        job_battery_leak
+                                                            .entry(leak_type.to_string())
+                                                            .and_modify(|e| {
+                                                                e.insert(app_name.clone());
+                                                            })
+                                                            .or_insert_with(|| {
+                                                                let mut s = HashSet::new();
+                                                                s.insert(app_name.clone());
+                                                                s
+                                                            });
+                                                    }
+                                                    if *j == "Charging" {
+                                                        job_charging_leak
+                                                            .entry(leak_type.to_string())
+                                                            .and_modify(|e| {
+                                                                e.insert(app_name.clone());
+                                                            })
+                                                            .or_insert_with(|| {
+                                                                let mut s = HashSet::new();
+                                                                s.insert(app_name.clone());
+                                                                s
+                                                            });
+                                                    }
+                                                    if *j == "Device Idle" {
+                                                        job_device_idel_leak
+                                                            .entry(leak_type.to_string())
+                                                            .and_modify(|e| {
+                                                                e.insert(app_name.clone());
+                                                            })
+                                                            .or_insert_with(|| {
+                                                                let mut s = HashSet::new();
+                                                                s.insert(app_name.clone());
+                                                                s
+                                                            });
+                                                    }
+                                                    if *j == "Storage" {
+                                                        job_storage_leak
+                                                            .entry(leak_type.to_string())
+                                                            .and_modify(|e| {
+                                                                e.insert(app_name.clone());
+                                                            })
+                                                            .or_insert_with(|| {
+                                                                let mut s = HashSet::new();
+                                                                s.insert(app_name.clone());
+                                                                s
+                                                            });
+                                                    }
+                                                    if *j == "Expedited" {
+                                                        job_expediate_leak
+                                                            .entry(leak_type.to_string())
+                                                            .and_modify(|e| {
+                                                                e.insert(app_name.clone());
+                                                            })
+                                                            .or_insert_with(|| {
+                                                                let mut s = HashSet::new();
+                                                                s.insert(app_name.clone());
+                                                                s
+                                                            });
+                                                    }
+                                                    if *j == "Important" {
+                                                        job_important_leak
+                                                            .entry(leak_type.to_string())
+                                                            .and_modify(|e| {
+                                                                e.insert(app_name.clone());
+                                                            })
+                                                            .or_insert_with(|| {
+                                                                let mut s = HashSet::new();
+                                                                s.insert(app_name.clone());
+                                                                s
+                                                            });
+                                                    }
+                                                }
+                                            }
                                         } else {
                                             dbg!("1111");
                                         }
@@ -907,7 +1156,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         o.any(|x| {
                             NEW_IMPLICIT.contains(&x.as_str()) || IMPLICIT.contains(&x.as_str())
                         })
-                    } /*else if ["onCreate", "onStartCommand", "onBind", "onRebind"]
+                    }
+                    /*else if ["onCreate", "onStartCommand", "onBind", "onRebind"]
                         .iter()
                         .any(|v| t.ends_with(v))
                     {
@@ -916,7 +1166,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         x
                         // dbg!(&app_name, &t);
                         // true
-                    } */ else {
+                    } */
+                    else {
                         true
                     }
                 } else {
@@ -1124,14 +1375,513 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
+
+    println!("++++++++++New Table++++++++++");
+    println!(
+        "&Network&{}&{}&{}&{}&{}\\\\",
+        job_network_leak
+            .get("Device")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        job_network_leak
+            .get("Network")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        job_network_leak
+            .get("Location")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        job_network_leak
+            .get("User Assets")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        job_network_leak
+            .values()
+            .into_iter()
+            .flatten()
+            .collect::<HashSet<&String>>()
+            .iter()
+            .count()
+    );
+    println!(
+        "&Battery&{}&{}&{}&{}&{}\\\\",
+        job_battery_leak
+            .get("Device")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        job_battery_leak
+            .get("Network")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        job_battery_leak
+            .get("Location")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        job_battery_leak
+            .get("User Assets")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        job_battery_leak
+            .values()
+            .into_iter()
+            .flatten()
+            .collect::<HashSet<&String>>()
+            .iter()
+            .count()
+    );
+
+    println!(
+        "&Charging&{}&{}&{}&{}&{}\\\\",
+        job_charging_leak
+            .get("Device")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        job_charging_leak
+            .get("Network")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        job_charging_leak
+            .get("Location")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        job_charging_leak
+            .get("User Assets")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        job_charging_leak
+            .values()
+            .into_iter()
+            .flatten()
+            .collect::<HashSet<&String>>()
+            .iter()
+            .count()
+    );
+
+    println!(
+        "&Device Idle&{}&{}&{}&{}&{}\\\\",
+        job_device_idel_leak
+            .get("Device")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        job_device_idel_leak
+            .get("Network")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        job_device_idel_leak
+            .get("Location")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        job_device_idel_leak
+            .get("User Assets")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        job_device_idel_leak
+            .values()
+            .into_iter()
+            .flatten()
+            .collect::<HashSet<&String>>()
+            .iter()
+            .count()
+    );
+
+    println!(
+        "&Storage&{}&{}&{}&{}&{}\\\\",
+        job_storage_leak
+            .get("Device")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        job_storage_leak
+            .get("Network")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        job_storage_leak
+            .get("Location")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        job_storage_leak
+            .get("User Assets")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        job_storage_leak
+            .values()
+            .into_iter()
+            .flatten()
+            .collect::<HashSet<&String>>()
+            .iter()
+            .count()
+    );
+
+    println!(
+        "&Expedited&{}&{}&{}&{}&{}\\\\",
+        job_expediate_leak
+            .get("Device")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        job_expediate_leak
+            .get("Network")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        job_expediate_leak
+            .get("Location")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        job_expediate_leak
+            .get("User Assets")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        job_expediate_leak
+            .values()
+            .into_iter()
+            .flatten()
+            .collect::<HashSet<&String>>()
+            .iter()
+            .count()
+    );
+
+    println!(
+        "&Important&{}&{}&{}&{}&{}\\\\",
+        job_important_leak
+            .get("Device")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        job_important_leak
+            .get("Network")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        job_important_leak
+            .get("Location")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        job_important_leak
+            .get("User Assets")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        job_important_leak
+            .values()
+            .into_iter()
+            .flatten()
+            .collect::<HashSet<&String>>()
+            .iter()
+            .count()
+    );
+
+    let job_overal_leak = job_network_leak
+        .iter()
+        .chain(job_battery_leak.iter())
+        .chain(job_charging_leak.iter())
+        .chain(job_device_idel_leak.iter())
+        .chain(job_storage_leak.iter())
+        .chain(job_expediate_leak.iter())
+        .chain(job_important_leak.iter())
+        .fold(HashMap::new(), |mut acc, (k, v)| {
+            acc.entry(k.clone())
+                .or_insert_with(HashSet::new)
+                .extend(v.iter().cloned());
+            acc
+        });
+
+    println!(
+        "&Overall&{}&{}&{}&{}&{}\\\\",
+        job_overal_leak
+            .get("Device")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        job_overal_leak
+            .get("Network")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        job_overal_leak
+            .get("Location")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        job_overal_leak
+            .get("User Assets")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        job_overal_leak
+            .values()
+            .into_iter()
+            .flatten()
+            .collect::<HashSet<&String>>()
+            .iter()
+            .count()
+    );
+
+    // broadcasts
+
+    // println!("Implicit&{}&{}&{}&{}&{}\\\\", broadcast_implicit_leak
+    //     .get("Device")
+    //     .map(|apps| apps.iter().count())
+    //     .unwrap_or(0),broadcast_implicit_leak.get("Network")
+
+    println!(
+        "&Implicit&{}&{}&{}&{}&{}\\\\",
+        broadcast_implicit_leak
+            .get("Device")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        broadcast_implicit_leak
+            .get("Network")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        broadcast_implicit_leak
+            .get("Location")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        broadcast_implicit_leak
+            .get("User Assets")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        broadcast_implicit_leak
+            .values()
+            .into_iter()
+            .flatten()
+            .collect::<HashSet<&String>>()
+            .iter()
+            .count()
+    );
+
+    println!(
+        "&Undocumented Implicit&{}&{}&{}&{}&{}\\\\",
+        broadcast_undocumented_implicit_leak
+            .get("Device")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        broadcast_undocumented_implicit_leak
+            .get("Network")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        broadcast_undocumented_implicit_leak
+            .get("Location")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        broadcast_undocumented_implicit_leak
+            .get("User Assets")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        broadcast_undocumented_implicit_leak
+            .values()
+            .into_iter()
+            .flatten()
+            .collect::<HashSet<&String>>()
+            .iter()
+            .count()
+    );
+
+    println!(
+        "&Explicit&{}&{}&{}&{}&{}\\\\",
+        broadcast_explicit_leak
+            .get("Device")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        broadcast_explicit_leak
+            .get("Network")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        broadcast_explicit_leak
+            .get("Location")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        broadcast_explicit_leak
+            .get("User Assets")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        broadcast_explicit_leak
+            .values()
+            .into_iter()
+            .flatten()
+            .collect::<HashSet<&String>>()
+            .iter()
+            .count()
+    );
+
+    let broadcast_overal_leak = broadcast_implicit_leak
+        .iter()
+        .chain(broadcast_undocumented_implicit_leak.iter())
+        .chain(broadcast_explicit_leak.iter())
+        .fold(HashMap::new(), |mut acc, (k, v)| {
+            acc.entry(k.clone())
+                .or_insert_with(HashSet::new)
+                .extend(v.iter().cloned());
+            acc
+        });
+
+        let broadcast_overal_leak_without_explicit = broadcast_implicit_leak
+        .iter()
+        .chain(broadcast_undocumented_implicit_leak.iter())
+        .fold(HashMap::new(), |mut acc, (k, v)| {
+            acc.entry(k.clone())
+                .or_insert_with(HashSet::new)
+                .extend(v.iter().cloned());
+            acc
+        });
+
+    println!(
+        "&Overall&{}&{}&{}&{}&{}\\\\",
+        broadcast_overal_leak
+            .get("Device")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        broadcast_overal_leak
+            .get("Network")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        broadcast_overal_leak
+            .get("Location")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        broadcast_overal_leak
+            .get("User Assets")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        broadcast_overal_leak
+            .values()
+            .into_iter()
+            .flatten()
+            .collect::<HashSet<&String>>()
+            .iter()
+            .count()
+    );
+
+    // service
+
+    println!(
+        "&Foreground&{}&{}&{}&{}&{}\\\\",
+        service_foreground_leak
+            .get("Device")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        service_foreground_leak
+            .get("Network")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        service_foreground_leak
+            .get("Location")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        service_foreground_leak
+            .get("User Assets")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        service_foreground_leak
+            .values()
+            .into_iter()
+            .flatten()
+            .collect::<HashSet<&String>>()
+            .iter()
+            .count()
+    );
+    println!(
+        "&Background&{}&{}&{}&{}&{}\\\\",
+        service_background_leak
+            .get("Device")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        service_background_leak
+            .get("Network")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        service_background_leak
+            .get("Location")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        service_background_leak
+            .get("User Assets")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        service_background_leak
+            .values()
+            .into_iter()
+            .flatten()
+            .collect::<HashSet<&String>>()
+            .iter()
+            .count()
+    );
+
+    let service_overal_leak = service_foreground_leak
+        .iter()
+        .chain(service_background_leak.iter())
+        .fold(HashMap::new(), |mut acc, (k, v)| {
+            acc.entry(k.clone())
+                .or_insert_with(HashSet::new)
+                .extend(v.iter().cloned());
+            acc
+        });
+
+    println!(
+        "&Overall&{}&{}&{}&{}&{}\\\\",
+        service_overal_leak
+            .get("Device")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        service_overal_leak
+            .get("Network")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        service_overal_leak
+            .get("Location")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        service_overal_leak
+            .get("User Assets")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        service_overal_leak
+            .values()
+            .into_iter()
+            .flatten()
+            .collect::<HashSet<&String>>()
+            .iter()
+            .count()
+    );
+
+    let backgroundwork_leak_overall = service_foreground_leak//service_overal_leak
+        .iter()
+        .chain(broadcast_overal_leak_without_explicit.iter())
+        .chain(job_overal_leak.iter())
+        .fold(HashMap::new(), |mut acc, (k, v)| {
+            acc.entry(k.clone())
+                .or_insert_with(HashSet::new)
+                .extend(v.iter().cloned());
+            acc
+        });
+
+    println!(
+        "&Overall&{}&{}&{}&{}&{}\\\\",
+        backgroundwork_leak_overall
+            .get("Device")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        backgroundwork_leak_overall
+            .get("Network")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        backgroundwork_leak_overall
+            .get("Location")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        backgroundwork_leak_overall
+            .get("User Assets")
+            .map(|apps| apps.iter().count())
+            .unwrap_or(0),
+        backgroundwork_leak_overall
+            .values()
+            .into_iter()
+            .flatten()
+            .collect::<HashSet<&String>>()
+            .iter()
+            .count()
+    );
+    println!("----------New Table----------");
+
     let mut leaks_visible_categories: HashMap<String, HashSet<String>> = HashMap::new();
     let mut leaks_invisible_categories: HashMap<String, HashSet<String>> = HashMap::new();
     let mut leaks_works_categories: HashMap<String, HashSet<String>> = HashMap::new();
     let mut leaks_works_invisible_categories: HashMap<String, HashSet<String>> = HashMap::new();
     let mut leaks_any_categories: HashMap<String, HashSet<String>> = HashMap::new();
-    let mut exclusive_leakage_visible:  HashSet<String> = HashSet::new();
-    let mut exclusive_leakage_invisible:  HashSet<String> = HashSet::new();
-    let mut exclusive_leakage_works:  HashSet<String> = HashSet::new();
+    let mut exclusive_leakage_visible: HashSet<String> = HashSet::new();
+    let mut exclusive_leakage_invisible: HashSet<String> = HashSet::new();
+    let mut exclusive_leakage_works: HashSet<String> = HashSet::new();
     for (item, item_name) in LEAK_ITEMS {
         let mut leak_type = String::new();
         if DEVICE_INFO.contains(&item) {
@@ -1247,7 +1997,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .difference(invisible_overal_leaks.get(item).unwrap_or(&empty_set))
             .cloned()
             .collect::<HashSet<String>>()
-            .difference(background_overal_leaks.get(item).unwrap_or(&empty_set)).cloned().collect::<HashSet<String>>();
+            .difference(background_overal_leaks.get(item).unwrap_or(&empty_set))
+            .cloned()
+            .collect::<HashSet<String>>();
         exclusive_leakage_visible.extend(num_exclusive_visible_leaks.iter().cloned());
         let num_exclusive_visible_leaks = num_exclusive_visible_leaks.len();
         let num_exclusive_invisible_leaks = invisible_overal_leaks
@@ -1257,7 +2009,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .cloned()
             .collect::<HashSet<String>>()
             .difference(background_overal_leaks.get(item).unwrap_or(&empty_set))
-            .cloned().collect::<HashSet<String>>();
+            .cloned()
+            .collect::<HashSet<String>>();
         exclusive_leakage_invisible.extend(num_exclusive_invisible_leaks.iter().cloned());
         let num_exclusive_invisible_leaks = num_exclusive_invisible_leaks.len();
         let num_exclusive_works_leaks = background_overal_leaks
@@ -1301,9 +2054,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
     println!("-------------------");
-    println!("Total Exclusive Leakage Visible: {}", exclusive_leakage_visible.len());
-    println!("Total Exclusive Leakage Invisible: {}", exclusive_leakage_invisible.len());
-    println!("Total Exclusive Leakage Works: {}", exclusive_leakage_works.len());
+    println!(
+        "Total Exclusive Leakage Visible: {}",
+        exclusive_leakage_visible.len()
+    );
+    println!(
+        "Total Exclusive Leakage Invisible: {}",
+        exclusive_leakage_invisible.len()
+    );
+    println!(
+        "Total Exclusive Leakage Works: {}",
+        exclusive_leakage_works.len()
+    );
     println!("-------------------");
     for (k, v) in leaks_visible_categories.iter() {
         println!("leak visible = {}: {}", k, v.len());
@@ -2185,19 +2947,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut use_amazon_domain_works = HashSet::new();
     let mut use_amazon_domain_any = HashSet::new();
     for (k, v) in &domains_apps_invisible {
-       
         if v.len() > 10 {
             if k.is_empty() {
                 continue;
             }
             let k = k.rsplit_once(":").map(|x| x.0).unwrap_or(k);
-            if GOOGLE_DOMAINS.contains(&k) || GOOGLE_DOMAINS.iter().any(|x| k.ends_with(format!(".{}", x).as_str())) {
+            if GOOGLE_DOMAINS.contains(&k)
+                || GOOGLE_DOMAINS
+                    .iter()
+                    .any(|x| k.ends_with(format!(".{}", x).as_str()))
+            {
                 use_google_domain_invisible.extend(v.iter().map(|x| x.to_string()));
             }
-            if FACEBOOK_DOMAINS.contains(&k) || FACEBOOK_DOMAINS.iter().any(|x| k.ends_with(format!(".{}", x).as_str())) {
+            if FACEBOOK_DOMAINS.contains(&k)
+                || FACEBOOK_DOMAINS
+                    .iter()
+                    .any(|x| k.ends_with(format!(".{}", x).as_str()))
+            {
                 use_facebook_domain_invisible.extend(v.iter().map(|x| x.to_string()));
             }
-            if AMAZON_DOMAINS.contains(&k) || AMAZON_DOMAINS.iter().any(|x| k.ends_with(format!(".{}", x).as_str())) {
+            if AMAZON_DOMAINS.contains(&k)
+                || AMAZON_DOMAINS
+                    .iter()
+                    .any(|x| k.ends_with(format!(".{}", x).as_str()))
+            {
                 use_amazon_domain_invisible.extend(v.iter().map(|x| x.to_string()));
             }
             third_party_invisible.push((k, v.len()));
@@ -2206,66 +2979,99 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     println!("Domains with at least 10 apps - Visible",);
     for (k, v) in &domains_apps_visible {
-
         if v.len() > 10 {
             if k.is_empty() {
                 continue;
             }
             let k = k.rsplit_once(":").map(|x| x.0).unwrap_or(k);
-            if GOOGLE_DOMAINS.contains(&k) || GOOGLE_DOMAINS.iter().any(|x| k.ends_with(format!(".{}", x).as_str())) {
+            if GOOGLE_DOMAINS.contains(&k)
+                || GOOGLE_DOMAINS
+                    .iter()
+                    .any(|x| k.ends_with(format!(".{}", x).as_str()))
+            {
                 use_google_domain_visible.extend(v.iter().map(|x| x.to_string()));
             }
-            if FACEBOOK_DOMAINS.contains(&k) || FACEBOOK_DOMAINS.iter().any(|x| k.ends_with(format!(".{}", x).as_str())) {
+            if FACEBOOK_DOMAINS.contains(&k)
+                || FACEBOOK_DOMAINS
+                    .iter()
+                    .any(|x| k.ends_with(format!(".{}", x).as_str()))
+            {
                 use_facebook_domain_visible.extend(v.iter().map(|x| x.to_string()));
             }
-            if AMAZON_DOMAINS.contains(&k) || AMAZON_DOMAINS.iter().any(|x| k.ends_with(format!(".{}", x).as_str())) {
+            if AMAZON_DOMAINS.contains(&k)
+                || AMAZON_DOMAINS
+                    .iter()
+                    .any(|x| k.ends_with(format!(".{}", x).as_str()))
+            {
                 use_amazon_domain_visible.extend(v.iter().map(|x| x.to_string()));
             }
             // println!("{} - {}", v.len(),k);
             third_party_visible.push((k, v.len()));
         }
     }
-    let  mut first_party_works = HashSet::new();
+    let mut first_party_works = HashSet::new();
     println!("Domains with at least 10 apps - Works",);
     for (k, v) in &domains_apps_works {
-    
         if v.len() > 10 {
             if k.is_empty() {
                 continue;
             }
             let k = k.rsplit_once(":").map(|x| x.0).unwrap_or(k);
-            if GOOGLE_DOMAINS.contains(&k) || GOOGLE_DOMAINS.iter().any(|x| k.ends_with(format!(".{}", x).as_str())) {
+            if GOOGLE_DOMAINS.contains(&k)
+                || GOOGLE_DOMAINS
+                    .iter()
+                    .any(|x| k.ends_with(format!(".{}", x).as_str()))
+            {
                 use_google_domain_works.extend(v.iter().map(|x| x.to_string()));
             }
-            if FACEBOOK_DOMAINS.contains(&k) || FACEBOOK_DOMAINS.iter().any(|x| k.ends_with(format!(".{}", x).as_str())) {
+            if FACEBOOK_DOMAINS.contains(&k)
+                || FACEBOOK_DOMAINS
+                    .iter()
+                    .any(|x| k.ends_with(format!(".{}", x).as_str()))
+            {
                 use_facebook_domain_works.extend(v.iter().map(|x| x.to_string()));
             }
-            if AMAZON_DOMAINS.contains(&k) || AMAZON_DOMAINS.iter().any(|x| k.ends_with(format!(".{}", x).as_str())) {
+            if AMAZON_DOMAINS.contains(&k)
+                || AMAZON_DOMAINS
+                    .iter()
+                    .any(|x| k.ends_with(format!(".{}", x).as_str()))
+            {
                 use_amazon_domain_works.extend(v.iter().map(|x| x.to_string()));
             }
             // println!("{} - {}", v.len(),k);
             third_party_works.push((k, v.len()));
-        }else{
+        } else {
             first_party_works.insert(k);
         }
     }
     println!("Domains with at least 10 apps - Any",);
     for (k, v) in &domains_apps_any {
-        
         if v.len() > 10 {
             if k.is_empty() {
                 continue;
             }
             let k = k.rsplit_once(":").map(|x| x.0).unwrap_or(k);
-        if GOOGLE_DOMAINS.contains(&k) || GOOGLE_DOMAINS.iter().any(|x| k.ends_with(format!(".{}", x).as_str())) {
-            use_google_domain_any.extend(v.iter().map(|x| x.to_string()));
-        }
-        if FACEBOOK_DOMAINS.contains(&k) || FACEBOOK_DOMAINS.iter().any(|x| k.ends_with(format!(".{}", x).as_str())) {
-            use_facebook_domain_any.extend(v.iter().map(|x| x.to_string()));
-        }
-        if AMAZON_DOMAINS.contains(&k) || AMAZON_DOMAINS.iter().any(|x| k.ends_with(format!(".{}", x).as_str())) {
-            use_amazon_domain_any.extend(v.iter().map(|x| x.to_string()));
-        }
+            if GOOGLE_DOMAINS.contains(&k)
+                || GOOGLE_DOMAINS
+                    .iter()
+                    .any(|x| k.ends_with(format!(".{}", x).as_str()))
+            {
+                use_google_domain_any.extend(v.iter().map(|x| x.to_string()));
+            }
+            if FACEBOOK_DOMAINS.contains(&k)
+                || FACEBOOK_DOMAINS
+                    .iter()
+                    .any(|x| k.ends_with(format!(".{}", x).as_str()))
+            {
+                use_facebook_domain_any.extend(v.iter().map(|x| x.to_string()));
+            }
+            if AMAZON_DOMAINS.contains(&k)
+                || AMAZON_DOMAINS
+                    .iter()
+                    .any(|x| k.ends_with(format!(".{}", x).as_str()))
+            {
+                use_amazon_domain_any.extend(v.iter().map(|x| x.to_string()));
+            }
             // println!("{} - {}", v.len(),k);
             third_party_any.push((k, v.len()));
         }
@@ -2275,22 +3081,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     third_party_works.sort_by(|a, b| b.1.cmp(&a.1));
     third_party_any.sort_by(|a, b| b.1.cmp(&a.1));
 
-    println!("work first party {}",first_party_works.len());
-    
+    println!("work first party {}", first_party_works.len());
+
     // for (k,v) in third_party_invisible{
 
     //     println!("{} - {}", v,k);
     // }
 
-    println!("Google Domain Invisible {}", use_google_domain_invisible.len());
+    println!(
+        "Google Domain Invisible {}",
+        use_google_domain_invisible.len()
+    );
     println!("Google Domain Visible {}", use_google_domain_visible.len());
     println!("Google Domain Works {}", use_google_domain_works.len());
     println!("Google Domain Any {}", use_google_domain_any.len());
-    println!("Facebook Domain Invisible {}", use_facebook_domain_invisible.len());
-    println!("Facebook Domain Visible {}", use_facebook_domain_visible.len());
+    println!(
+        "Facebook Domain Invisible {}",
+        use_facebook_domain_invisible.len()
+    );
+    println!(
+        "Facebook Domain Visible {}",
+        use_facebook_domain_visible.len()
+    );
     println!("Facebook Domain Works {}", use_facebook_domain_works.len());
     println!("Facebook Domain Any {}", use_facebook_domain_any.len());
-    println!("Amazon Domain Invisible {}", use_amazon_domain_invisible.len());
+    println!(
+        "Amazon Domain Invisible {}",
+        use_amazon_domain_invisible.len()
+    );
     println!("Amazon Domain Visible {}", use_amazon_domain_visible.len());
     println!("Amazon Domain Works {}", use_amazon_domain_works.len());
     println!("Amazon Domain Any {}", use_amazon_domain_any.len());
@@ -2308,33 +3126,53 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     //     )
     // }
 
-        for i in 0..21 {
+    for i in 0..21 {
         println!(
             "{}&{}&{}&{}\\\\",
-            check_google_facebook_domain_generate_output(third_party_visible[i].0,
-            third_party_visible[i].1),
-            check_google_facebook_domain_generate_output(third_party_invisible[i].0,
-            third_party_invisible[i].1),
-            check_google_facebook_domain_generate_output(third_party_works[i].0,
-            third_party_works[i].1),
-            check_google_facebook_domain_generate_output(third_party_any[i].0,
-            third_party_any[i].1)
+            check_google_facebook_domain_generate_output(
+                third_party_visible[i].0,
+                third_party_visible[i].1
+            ),
+            check_google_facebook_domain_generate_output(
+                third_party_invisible[i].0,
+                third_party_invisible[i].1
+            ),
+            check_google_facebook_domain_generate_output(
+                third_party_works[i].0,
+                third_party_works[i].1
+            ),
+            check_google_facebook_domain_generate_output(
+                third_party_any[i].0,
+                third_party_any[i].1
+            )
         )
     }
     Ok(())
 }
 
-fn check_google_facebook_domain_generate_output(domain:&str,len:usize) -> String{
-    if GOOGLE_DOMAINS.contains(&domain) || GOOGLE_DOMAINS.iter().any(|x| domain.ends_with(format!(".{}", x).as_str())) {
-        return format!("\\google{{{}}}&\\google{{{}}}",domain,len);
+fn check_google_facebook_domain_generate_output(domain: &str, len: usize) -> String {
+    if GOOGLE_DOMAINS.contains(&domain)
+        || GOOGLE_DOMAINS
+            .iter()
+            .any(|x| domain.ends_with(format!(".{}", x).as_str()))
+    {
+        return format!("\\google{{{}}}&\\google{{{}}}", domain, len);
     }
-    if FACEBOOK_DOMAINS.contains(&domain) || FACEBOOK_DOMAINS.iter().any(|x| domain.ends_with(format!(".{}", x).as_str())) {
-        return format!("\\facebook{{{}}}&\\facebook{{{}}}",domain,len);
+    if FACEBOOK_DOMAINS.contains(&domain)
+        || FACEBOOK_DOMAINS
+            .iter()
+            .any(|x| domain.ends_with(format!(".{}", x).as_str()))
+    {
+        return format!("\\facebook{{{}}}&\\facebook{{{}}}", domain, len);
     }
-    if AMAZON_DOMAINS.contains(&domain) || AMAZON_DOMAINS.iter().any(|x| domain.ends_with(format!(".{}", x).as_str())) {
-        return format!("\\amazon{{{}}}&\\amazon{{{}}}",domain,len);
+    if AMAZON_DOMAINS.contains(&domain)
+        || AMAZON_DOMAINS
+            .iter()
+            .any(|x| domain.ends_with(format!(".{}", x).as_str()))
+    {
+        return format!("\\amazon{{{}}}&\\amazon{{{}}}", domain, len);
     }
-    return format!("{}&{}",domain,len);
+    return format!("{}&{}", domain, len);
 }
 
 #[derive(Debug, Clone, Default)]
@@ -2351,7 +3189,1161 @@ pub enum WorkType {
     Persistent,
 }
 
-
-const FACEBOOK_DOMAINS : [&str; 395] = ["aboutfacebook.com","accessfacebookfromschool.com","acebooik.com","acebook.com","advancediddetection.com","askfacebook.net","askfacebook.org","atdmt2.com","atlasdmt.com","atlasonepoint.com","buyingfacebooklikes.com","careersatfb.com","celebgramme.com","china-facebook.com","click-url.com","como-hackearfacebook.com","crowdtangle.com","dacebook.com","dlfacebook.com","dotfacebook.com","dotfacebook.net","expresswifi.com","faacebok.com","faacebook.com","faasbook.com","facbebook.com","facbeok.com","facboo.com","facbook.com","facbool.com","facboox.com","faccebook.com","faccebookk.com","facdbook.com","facdebook.com","face-book.com","faceabook.com","facebboc.com","facebbook.com","facebboook.com","facebcook.com","facebdok.com","facebgook.com","facebhook.com","facebkkk.com","facebo-ok.com","faceboak.com","facebock.com","facebocke.com","facebof.com","faceboik.com","facebok.com","facebokbook.com","facebokc.com","facebokk.com","facebokok.com","faceboks.com","facebol.com","facebolk.com","facebomok.com","faceboo.com","facebooa.com","faceboob.com","faceboobok.com","facebooc.com","faceboock.com","facebood.com","facebooe.com","faceboof.com","facebooi.com","facebooik.com","facebooik.org","facebooj.com","facebook-corp.com","facebook-covid-19.com","facebook-ebook.com","facebook-forum.com","facebook-hardware.com","facebook-inc.com","facebook-login.com","facebook-newsroom.com","facebook-newsroom.org","facebook-pmdcenter.com","facebook-pmdcenter.net","facebook-pmdcenter.org","facebook-privacy.com","facebook-program.com","facebook-studio.com","facebook-support.org","facebook-texas-holdem.com","facebook-texas-holdem.net","facebook.br","facebook.ca","facebook.cc","facebook.com","facebook.design","facebook.net","facebook.hu","facebook.in","fecebook.net","facebook.nl","facebook.org","facebook.se","facebook.shop","facebook.tv","facebook.us","facebook.wang","facebook123.org","facebook30.com","facebook30.net","facebook30.org","facebook4business.com","facebookads.com","facebookadvertisingsecrets.com","facebookatschool.com","facebookawards.com","facebookblueprint.net","facebookbrand.com","facebookbrand.net","facebookcanadianelectionintegrityinitiative.com","facebookcareer.com","facebookcheats.com","facebookck.com","facebookclub.com","facebookcom.com","facebookconsultant.org","facebookcoronavirus.com","facebookcovers.org","facebookcredits.info","facebookdating.net","facebookdusexe.org","facebookemail.com","facebookenespanol.com","facebookexchange.com","facebookexchange.net","facebookfacebook.com","facebookflow.com","facebookgames.com","facebookgraphsearch.com","facebookgraphsearch.info","facebookgroups.com","facebookhome.cc","facebookhome.com","facebookhome.info","facebookhub.com","facebooki.com","facebookinc.com","facebookland.com","facebooklikeexchange.com","facebooklive.com","facebooklivestaging.net","facebooklivestaging.org","facebooklogin.com","facebooklogin.info","facebookloginhelp.net","facebooklogs.com","facebookmail.com","facebookmail.tv","facebookmanager.info","facebookmarketing.info","facebookmarketingpartner.com","facebookmarketingpartners.com","facebookmobile.com","facebookmsn.com","facebooknews.com","facebooknfl.com","facebooknude.com","facebookofsex.com","facebookook.com","facebookpaper.com","facebookpay.com","facebookphonenumber.net","facebookphoto.com","facebookphotos.com","facebookpmdcenter.com","facebookpoke.net","facebookpoke.org","facebookpoker.info","facebookpokerchips.info","facebookporn.net","facebookporn.org","facebookporno.net","facebookportal.com","facebooks.com","facebooksafety.com","facebooksecurity.net","facebookshop.com","facebooksignup.net","facebooksite.net","facebookstories.com","facebookstudios.net","facebookstudios.org","facebooksupplier.com","facebooksuppliers.com","facebookswagemea.com","facebookswagstore.com","facebooksz.com","facebookthreads.net","facebooktv.net","facebooktv.org","facebookvacation.com","facebookw.com","facebookworld.com","facebool.com","facebool.info","facebooll.com","faceboom.com","faceboon.com","faceboonk.com","faceboooik.com","faceboook.com","faceboop.com","faceboot.com","faceboox.com","facebopk.com","facebpook.com","facebuk.com","facebuok.com","facebvook.com","facebyook.com","facebzook.com","facecbgook.com","facecbook.com","facecbook.org","facecook.com","facecook.org","facedbook.com","faceebok.com","faceebook.com","faceebot.com","facegbok.com","facegbook.com","faceobk.com","faceobok.com","faceobook.com","faceook.com","facerbooik.com","facerbook.com","facesbooc.com","facesounds.com","facetook.com","facevbook.com","facewbook.co","facewook.com","facfacebook.com","facfebook.com","fackebook.com","facnbook.com","facrbook.com","facvebook.com","facwebook.com","facxebook.com","fadebook.com","faebok.com","faebook.com","faebookc.com","faeboook.com","faecebok.com","faesebook.com","fafacebook.com","faicbooc.com","fasebokk.com","fasebook.com","faseboox.com","favebook.com","faycbok.com","fb.careers","fb.com","fb.gg","fb.me","fb.watch","fbacebook.com","fbbmarket.com","fbboostyourbusiness.com","fbcdn.com","fbcdn.net","fbfeedback.com","fbhome.com","fbidb.io","fbinc.com","fbinnovation.com","fbmarketing.com","fbreg.com","fbrpms.com","fbsbx.com","fbsbx.net","fbsupport-covid.net","fbthirdpartypixel.com","fbthirdpartypixel.net","fbthirdpartypixel.org","fburl.com","fbwat.ch","fbworkmail.com","fcacebook.com","fcaebook.com","fcebook.com","fcebookk.com","fcfacebook.com","fdacebook.info","feacboo.com","feacbook.com","feacbooke.com","feacebook.com","fecbbok.com","fecbooc.com","fecbook.com","feceboock.com","feceboox.com","fececbook.com","feook.com","ferabook.com","fescebook.com","fesebook.com","ffacebook.com","fgacebook.com","ficeboock.com","fmcebook.com","fnacebook.com","fosebook.com","fpacebook.com","fqcebook.com","fracebook.com","freeb.com","freebasics.com","freebasics.net","freebs.com","freefacebook.com","freefacebook.net","freefacebookads.net","freefblikes.com","freindfeed.com","friendbook.info","friendfed.com","friendfeed-api.com","friendfeed-media.com","friendfeed.com","friendfeedmedia.com","fsacebok.com","fscebook.com","fundraisingwithfacebook.com","funnyfacebook.org","futureofbusinesssurvey.org","gacebook.com","gameroom.com","gfacecbook.com","groups.com","hackerfacebook.com","hackfacebook.com","hackfacebookid.com","hifacebook.info","howtohackfacebook-account.com","hsfacebook.com","httpfacebook.com","httpsfacebook.com","httpwwwfacebook.com","i.org","internet.org","klik.me","liverail.com","liverail.tv","login-account.net","markzuckerberg.com","midentsolutions.com","mobilefacebook.com","moneywithfacebook.com","myfbfans.com","newsfeed.com","nextstop.com","online-deals.net","opencreate.org","reachtheworldonfacebook.com","rocksdb.org","shopfacebook.com","sportsfacebook.com","sportstream.com","supportfacebook.com","terragraph.com","thefacebook.com","thefacebook.net","thefind.com","toplayerserver.com","viewpointsfromfacebook.com","whyfacebook.com","worldhack.com","www-facebook.com","wwwfacebok.com","wwwfacebook.com","wwwmfacebook.com","zuckerberg.com","zuckerberg.net","facebookwork.com","redkix.com","workplace.com","workplaceusecases.com","fbcdn-a.akamaihd.net"];
-const GOOGLE_DOMAINS : [&str; 663] = ["google.ad","google.ae","google.al","google.am","google.as","google.at","google.az","google.ba","google.be","google.bf","google.bg","google.bi","google.bj","google.bs","google.bt","google.by","google.ca","google.cat","google.cd","google.cf","google.cg","google.ch","google.ci","google.cl","google.cm","google.cn","google.co","google.co.ao","google.co.bw","google.co.ck","google.co.cr","google.co.id","google.co.il","google.co.in","google.co.jp","google.co.ke","google.co.kr","google.co.ls","google.co.ma","google.co.mz","google.co.nz","google.co.th","google.co.tz","google.co.ug","google.co.uk","google.co.uz","google.co.ve","google.co.vi","google.co.za","google.co.zm","google.co.zw","google.com","google.com.af","google.com.ag","google.com.ai","google.com.ar","google.com.au","google.com.bd","google.com.bh","google.com.bn","google.com.bo","google.com.br","google.com.bz","google.com.co","google.com.cu","google.com.cy","google.com.do","google.com.ec","google.com.eg","google.com.et","google.com.fj","google.com.gh","google.com.gi","google.com.gt","google.com.hk","google.com.jm","google.com.kh","google.com.kw","google.com.lb","google.com.ly","google.com.mm","google.com.mt","google.com.mx","google.com.my","google.com.na","google.com.ng","google.com.ni","google.com.np","google.com.om","google.com.pa","google.com.pe","google.com.pg","google.com.ph","google.com.pk","google.com.pr","google.com.py","google.com.qa","google.com.sa","google.com.sb","google.com.sg","google.com.sl","google.com.sv","google.com.tj","google.com.tr","google.com.tw","google.com.ua","google.com.uy","google.com.vc","google.com.vn","google.cv","google.cz","google.de","google.dj","google.dk","google.dm","google.dz","google.ee","google.es","google.fi","google.fm","google.fr","google.ga","google.ge","google.gg","google.gl","google.gm","google.gr","google.gy","google.hn","google.hr","google.ht","google.hu","google.ie","google.im","google.iq","google.is","google.it","google.je","google.jo","google.kg","google.ki","google.kz","google.la","google.li","google.lk","google.lt","google.lu","google.lv","google.md","google.me","google.mg","google.mk","google.ml","google.mn","google.ms","google.mu","google.mv","google.mw","google.ne","google.nl","google.no","google.nr","google.nu","google.pl","google.pn","google.ps","google.pt","google.ro","google.rs","google.ru","google.rw","google.sc","google.se","google.sh","google.si","google.sk","google.sm","google.sn","google.so","google.sr","google.st","google.td","google.tg","google.tl","google.tm","google.tn","google.to","google.tt","google.vg","google.vu","google.ws","0emm.com","1e100.net","1ucrs.com","466453.com","abc.xyz","adgoogle.net","admeld.com","angulardart.org","api.ai","apigee.com","appbridge.ca","appbridge.io","appbridge.it","appspot.com","apture.com","area120.com","asp-cc.com","autodraw.com","bandpage.com","baselinestudy.com","baselinestudy.org","bazel.build","bdn.dev","beatthatquote.com","blink.org","brocaproject.com","brotli.org","bumpshare.com","bumptop.ca","bumptop.com","bumptop.net","bumptop.org","bumptunes.com","campuslondon.com","certificate-transparency.org","chrome.com","chromebook.com","chromecast.com","chromeos.dev","chromium.org","chronicle.security","chroniclesec.com","cloudburstresearch.com","cloudfunctions.net","cloudproxy.app","cloudrobotics.com","cobrasearch.com","codespot.com","conscrypt.com","conscrypt.org","cookiechoices.org","coova.com","coova.net","coova.org","crossmediapanel.com","cs4hs.com","dartsearch.net","dataliberation.org","debug.com","debugproject.com","devsitetest.how","dialogflow.com","digitalassetlinks.org","docs.new","episodic.com","feedburner.com","fflick.com","financeleadsonline.com","fitbit.com","foofle.com","froogle.com","fuchsia.dev","g-tun.com","g.cn","g.co","g.dev","g.page","gateway.dev","gcr.io","gerritcodereview.com","getbumptop.com","ggoogle.com","gipscorp.com","gkecnapps.cn","globaledu.org","gmail.com","gmodules.com","gogle.com","gogole.com","gonglchuangl.net","goo.gl","googel.com","googil.com","googl.com","google-access.net","google-syndication.com","google.berlin","google.dev","google.net","google.org","google.ventures","googleacquisitionmigration.com","googleapis.cn","googleapis.com","googleapps.com","googlearth.com","googleblog.com","googlebot.com","googlecapital.com","googlecert.net","googlecnapps.cn","googlecode.com","googlecommerce.com","googlecompare.co.uk","googledanmark.com","googledomains.com","googledrive.com","googlee.com","googleearth.com","googlefiber.com","googlefiber.net","googlefinland.com","googlemail.com","googlemaps.com","googlepagecreator.com","googlephotos.com","googleplus.com","googlesource.com","googlestore.com","googlesverige.com","googleusercontent.com","googleventures.com","googlezip.net","googlr.com","goolge.com","gooogle.com","gridaware.app","gsrc.io","gstatic.cn","gstatic.com","gstaticcnapps.cn","gsuite.com","gv.com","gvt0.com","gvt1.com","gvt2.com","gvt3.com","gvt5.com","gvt6.com","gvt7.com","gvt9.com","haplorrhini.com","hdrplusdata.org","hindiweb.com","howtogetmo.co.uk","html5rocks.com","hwgo.com","iamremarkable.org","idx.dev","igoogle.com","impermium.com","itasoftware.com","j2objc.org","jibemobile.com","keyhole.com","keytransparency.com","keytransparency.foo","keytransparency.org","lanternal.com","like.com","madewithcode.com","material.io","mdialog.com","meet.new","mfg-inspector.com","mobileview.page","moodstocks.com","near.by","nest.com","nomulus.foo","oauthz.com","on.here","on2.com","onefifteen.net","onefifteen.org","oneworldmanystories.com","openthread.io","openweave.io","orbitera.com","page.link","pagespeedmobilizer.com","pageview.mobi","panoramio.com","partylikeits1986.org","paxlicense.org","picasa.com","picasaweb.com","picasaweb.net","picasaweb.org","picnik.com","pittpatt.com","pixate.com","postini.com","privacysandbox.com","projectara.com","projectbaseline.com","publishproxy.com","questvisual.com","quickoffice.com","quiksee.com","revolv.com","ridepenguin.com","run.app","savethedate.foo","saynow.com","schemer.com","screenwisetrends.com","screenwisetrendspanel.com","sheets.new","slides.new","snapseed.com","solveforx.com","stadia.dev","stcroixmosquito.com","stcroixmosquitoproject.com","studywatchbyverily.com","studywatchbyverily.org","stxmosquito.com","stxmosquitoproject.com","stxmosquitoproject.net","stxmosquitoproject.org","synergyse.com","tensorflow.org","tfhub.dev","thecleversense.com","thegooglestore.com","thinkquarterly.co.uk","thinkquarterly.com","thinkwithgoogle.com","tiltbrush.com","txcloud.net","txvia.com","unfiltered.news","useplannr.com","usvimosquito.com","usvimosquitoproject.com","velostrata.com","verily.com","verilylifesciences.com","verilystudyhub.com","verilystudywatch.com","verilystudywatch.org","wallet.com","waymo.com","waze.com","web.app","web.dev","webappfieldguide.com","webmproject.org","webpkgcache.com","webrtc.org","weltweitwachsen.de","whatbrowser.org","whats.new","widevine.com","withgoogle.com","womenwill.com","womenwill.com.br","womenwill.id","womenwill.in","womenwill.mx","x.company","x.team","xn--9kr7l.com","xn--9trs65b.com","xn--flw351e.com","xn--ggle-55da.com","xn--gogl-0nd52e.com","xn--gogl-1nd42e.com","xplr.co","zukunftswerkstatt.de","google-ohttp-relay-safebrowsing.fastly-edge.com","www.recaptcha.net","265.com","2mdn-cn.net","2mdn.net","admob-cn.com","adservice.google.com","ai.ytimg.com","app-measurement-cn.com","app-measurement.com","apps5.oingo.com","avail.googleflights.net","beacons.gcp.gvt2.com","beacons.gvt2.com","beacons2.gvt2.com","beacons3.gvt2.com","borgmon.adz.google.com","c.admob.com","c.android.clients.google.com","cache-management-prod.google.com","cache.pack.google.com","checkin.gstatic.com","clickserve.cc-dt.com","clickserve.dartsearch.net","clickserver.googleads.com","clientservices.googleapis.com","cn.widevine.com","cnappinstall.googleadapis.com","connectivitycheck.gstatic.com","content.googleadapis.com","crashlyticsreports-pa.googleapis.com","crl.pki.goog","csi.gstatic.com","dartsearch-cn.net","dg-meta.video.google.com","distribution.qatp1.net","distribution.qcpp1.net","distribution.qpdp1.net","dl.google.com","dl.l.google.com","doubleclick-cn.net","doubleclick.net","download.mlcc.google.com","download.qatp1.net","download.qcpp1.net","download.qpdp1.net","download.tensorflow.google.com","emmapplecodevice.googleapis.com","firebase-settings.crashlytics.com","fontfiles.googleadapis.com","fontfiles.googleapis.com","fonts.googleadapis.com","fonts.googleapis.com","fonts.gstatic.com","g0.gstatic.com","g1.gstatic.com","g2.gstatic.com","g3.gstatic.com","gonglchuangl.net","gongyichuangyi.net","google-analytics-cn.com","google-analytics.com","googleadservices-cn.com","googleadservices.com","googleanalytics.com","googleapis-cn.com","googleapps-cn.com","googleflights-cn.net","googleoptimize-cn.com","googleoptimize.com","googleplex.com","googlesyndication-cn.com","googlesyndication.com","googletagmanager-cn.com","googletagmanager.com","googletagservices-cn.com","googletagservices.com","googletraveladservices-cn.com","googletraveladservices.com","googlevads-cn.com","goto.google.com","gstatic-cn.com","gstaticadssl.l.google.com","gtm.oasisfeng.com","imasdk.googleapis.com","monitoring.qatp1.net","monitoring.qcpp1.net","monitoring.qpdp1.net","ocsp.pki.goog","pagead-googlehosted.l.google.com","performanceparameters.googleapis.com","pki-goog.l.google.com","play.1ucrs.com","prod-controlbe.floonet.goog","prod-databe.floonet.goog","prod.databe.floonet.goog","qagpublic.qatp1.net","qagpublic.qcpp1.net","qagpublic.qpdp1.net","qgadmin.qatp1.net","qgadmin.qcpp1.net","qgadmin.qpdp1.net","qpx.googleflights.net","qualysapi.qatp1.net","qualysapi.qcpp1.net","qualysapi.qpdp1.net","qualysguard.qatp1.net","qualysguard.qcpp1.net","qualysguard.qpdp1.net","recaptcha.net","recaptcha-cn.net","redirector.bdn.dev","redirector.c.chat.google.com","redirector.c.mail.google.com","redirector.c.pack.google.com","redirector.c.youtubeeducation.com","redirector.gcpcdn.gvt1.com","redirector.gvt1.com","redirector.offline-maps.gvt1.com","redirector.snap.gvt1.com","redirector.xn--ngstr-lra8j.com","regioninfo-pa.googleapis.com","safebrowsing.googleapis.com","scanservice1.qatp1.net","scanservice1.qcpp1.net","scanservice1.qpdp1.net","service.urchin.com","settings.xn--9trs65b.com","ssl-google-analytics.l.google.com","ssl.gstatic.com","staging-controlbe.floonet.goog","staging-databe.floonet.goog","staging-regioninfo-pa.googleapis.com","staging.databe.floonet.goog","support.1ucrs.com","tac.googleapis.com","test.bugs-qa.chromium.org","test.gbugs-qa.chromium.org","tools.google.com","tools.l.google.com","update.crashlytics.com","update.googleapis.com","wear.googleapis.com","www-google-analytics.l.google.com","www-googletagmanager.l.google.com","www.destinationurl.com","www.googleadapis.com","www.gstatic.com","www.pxcc.com","xn--9kr7l.com","xn--flw351e.com","applemdm.corp.google.com","dns.corp.google.com","g3doc.corp.google.com","gmskiosk-ssl.corp.google.com","go.corp.google.com","gorom.corp.google.com","goto.corp.google.com","l2-uberproxy.corp.google.com","logger.corp.google.com","logger-dev.corp.google.com","login.corp.google.com","proxyconfig.corp.google.com","rapture-autopush.corp.google.com","rapture.corp.google.com","rapture-prod.corp.google.com","rapture-test.corp.google.com","r.cert.corp.google.com","ssh-relay.corp.google.com","sslredirect.corp.google.com","streaming-uberproxy.corp.google.com","streaming-uberproxy-rotation.corp.google.com","sup.corp.google.com","supportcenter.corp.google.com","sup-ssh-relay2.corp.google.com","sup-ssh-relay.corp.google.com","techstop.corp.google.com","uberproxy4.corp.google.com","uberproxy6.corp.google.com","uberproxy.corp.google.com","uberproxy-debug4.corp.google.com","uberproxy-debug.corp.google.com","uberproxy-pen-redirect.corp.google.com","vext.corp.google.com","sup.l.google.com","uberproxy-with-cn.l.google.com","uberproxy-with-cn4.l.google.com","uberproxy-with-cn6.l.google.com","qiao-cn.com","gvt1-cn.com","gvt2-cn.com"];
-const AMAZON_DOMAINS : [&str; 94] = ["a2z.com","aboutamazon.cn","aboutamazon.co.uk","aboutamazon.com","aboutamazon.com.au","aboutamazon.de","aboutamazon.es","aboutamazon.eu","aboutamazon.fr","aboutamazon.in","aboutamazon.it","aboutamazon.jp","aboutamazon.pl","alexafund.cn","alexafund.com.cn","amaaozn.com","amazon-fashions.com","amazon-jp-recruiting.com","amazon-lantern.com","amazon-launchpad.com","amazon.ae","amazon.ca","amazon.cn","amazon.co.jp","amazon.co.uk","amazon.com","amazon.com.au","amazon.com.br","amazon.com.mx","amazon.com.tr","amazon.de","amazon.dev","amazon.es","amazon.fr","amazon.in","amazon.it","amazon.jobs","amazon.jp","amazon.nl","amazon.red","amazon.sg","amazonalexavoxcon.com","amazonauthorinsights.com","amazonbusiness.cn","amazonbusiness.com.cn","amazonbusiness.org","amazonbusinessblog.com","amazonchoice.cn","amazonchoice.com.cn","amazonchoices.cn","amazonchoices.com.cn","amazondevicesupport.com","amazonfctours.com","amazonianblog.com","amazonimages.com","amazoninspire.cn","amazoninspire.com.cn","amazonlaunchpad.cn","amazonlaunchpad.com","amazonlaunchpad.com.cn","amazonlending.com.cn","amazonliterarypartnership.com","amazonlumberyard.wang","amazonnow.cn","amazonnow.com.cn","amazonpay.com","amazonpay.in","amazonsdi.com","amazonstudiosguilds.com","amazonvideodirect.com","amzn.asia","amzn.com","amzn.to","amznl.com","assoc-amazon.cn","associates-amazon.com","gameon-masters.com","gdansk-amazon.com","images-amazon.com","media-amazon.com","primeday.cn","primeday.com.cn","primeday.info","siege-amazon.com","ssl-images-amazon.com","ueberamazon.de","yamaxun.cn","yamaxun.com","z.cn","alexa.com","audible.com","createspace.com","full:images-cn.ssl-images-amazon.com","full:images-cn-8.ssl-images-amazon.com"];
+const FACEBOOK_DOMAINS: [&str; 395] = [
+    "aboutfacebook.com",
+    "accessfacebookfromschool.com",
+    "acebooik.com",
+    "acebook.com",
+    "advancediddetection.com",
+    "askfacebook.net",
+    "askfacebook.org",
+    "atdmt2.com",
+    "atlasdmt.com",
+    "atlasonepoint.com",
+    "buyingfacebooklikes.com",
+    "careersatfb.com",
+    "celebgramme.com",
+    "china-facebook.com",
+    "click-url.com",
+    "como-hackearfacebook.com",
+    "crowdtangle.com",
+    "dacebook.com",
+    "dlfacebook.com",
+    "dotfacebook.com",
+    "dotfacebook.net",
+    "expresswifi.com",
+    "faacebok.com",
+    "faacebook.com",
+    "faasbook.com",
+    "facbebook.com",
+    "facbeok.com",
+    "facboo.com",
+    "facbook.com",
+    "facbool.com",
+    "facboox.com",
+    "faccebook.com",
+    "faccebookk.com",
+    "facdbook.com",
+    "facdebook.com",
+    "face-book.com",
+    "faceabook.com",
+    "facebboc.com",
+    "facebbook.com",
+    "facebboook.com",
+    "facebcook.com",
+    "facebdok.com",
+    "facebgook.com",
+    "facebhook.com",
+    "facebkkk.com",
+    "facebo-ok.com",
+    "faceboak.com",
+    "facebock.com",
+    "facebocke.com",
+    "facebof.com",
+    "faceboik.com",
+    "facebok.com",
+    "facebokbook.com",
+    "facebokc.com",
+    "facebokk.com",
+    "facebokok.com",
+    "faceboks.com",
+    "facebol.com",
+    "facebolk.com",
+    "facebomok.com",
+    "faceboo.com",
+    "facebooa.com",
+    "faceboob.com",
+    "faceboobok.com",
+    "facebooc.com",
+    "faceboock.com",
+    "facebood.com",
+    "facebooe.com",
+    "faceboof.com",
+    "facebooi.com",
+    "facebooik.com",
+    "facebooik.org",
+    "facebooj.com",
+    "facebook-corp.com",
+    "facebook-covid-19.com",
+    "facebook-ebook.com",
+    "facebook-forum.com",
+    "facebook-hardware.com",
+    "facebook-inc.com",
+    "facebook-login.com",
+    "facebook-newsroom.com",
+    "facebook-newsroom.org",
+    "facebook-pmdcenter.com",
+    "facebook-pmdcenter.net",
+    "facebook-pmdcenter.org",
+    "facebook-privacy.com",
+    "facebook-program.com",
+    "facebook-studio.com",
+    "facebook-support.org",
+    "facebook-texas-holdem.com",
+    "facebook-texas-holdem.net",
+    "facebook.br",
+    "facebook.ca",
+    "facebook.cc",
+    "facebook.com",
+    "facebook.design",
+    "facebook.net",
+    "facebook.hu",
+    "facebook.in",
+    "fecebook.net",
+    "facebook.nl",
+    "facebook.org",
+    "facebook.se",
+    "facebook.shop",
+    "facebook.tv",
+    "facebook.us",
+    "facebook.wang",
+    "facebook123.org",
+    "facebook30.com",
+    "facebook30.net",
+    "facebook30.org",
+    "facebook4business.com",
+    "facebookads.com",
+    "facebookadvertisingsecrets.com",
+    "facebookatschool.com",
+    "facebookawards.com",
+    "facebookblueprint.net",
+    "facebookbrand.com",
+    "facebookbrand.net",
+    "facebookcanadianelectionintegrityinitiative.com",
+    "facebookcareer.com",
+    "facebookcheats.com",
+    "facebookck.com",
+    "facebookclub.com",
+    "facebookcom.com",
+    "facebookconsultant.org",
+    "facebookcoronavirus.com",
+    "facebookcovers.org",
+    "facebookcredits.info",
+    "facebookdating.net",
+    "facebookdusexe.org",
+    "facebookemail.com",
+    "facebookenespanol.com",
+    "facebookexchange.com",
+    "facebookexchange.net",
+    "facebookfacebook.com",
+    "facebookflow.com",
+    "facebookgames.com",
+    "facebookgraphsearch.com",
+    "facebookgraphsearch.info",
+    "facebookgroups.com",
+    "facebookhome.cc",
+    "facebookhome.com",
+    "facebookhome.info",
+    "facebookhub.com",
+    "facebooki.com",
+    "facebookinc.com",
+    "facebookland.com",
+    "facebooklikeexchange.com",
+    "facebooklive.com",
+    "facebooklivestaging.net",
+    "facebooklivestaging.org",
+    "facebooklogin.com",
+    "facebooklogin.info",
+    "facebookloginhelp.net",
+    "facebooklogs.com",
+    "facebookmail.com",
+    "facebookmail.tv",
+    "facebookmanager.info",
+    "facebookmarketing.info",
+    "facebookmarketingpartner.com",
+    "facebookmarketingpartners.com",
+    "facebookmobile.com",
+    "facebookmsn.com",
+    "facebooknews.com",
+    "facebooknfl.com",
+    "facebooknude.com",
+    "facebookofsex.com",
+    "facebookook.com",
+    "facebookpaper.com",
+    "facebookpay.com",
+    "facebookphonenumber.net",
+    "facebookphoto.com",
+    "facebookphotos.com",
+    "facebookpmdcenter.com",
+    "facebookpoke.net",
+    "facebookpoke.org",
+    "facebookpoker.info",
+    "facebookpokerchips.info",
+    "facebookporn.net",
+    "facebookporn.org",
+    "facebookporno.net",
+    "facebookportal.com",
+    "facebooks.com",
+    "facebooksafety.com",
+    "facebooksecurity.net",
+    "facebookshop.com",
+    "facebooksignup.net",
+    "facebooksite.net",
+    "facebookstories.com",
+    "facebookstudios.net",
+    "facebookstudios.org",
+    "facebooksupplier.com",
+    "facebooksuppliers.com",
+    "facebookswagemea.com",
+    "facebookswagstore.com",
+    "facebooksz.com",
+    "facebookthreads.net",
+    "facebooktv.net",
+    "facebooktv.org",
+    "facebookvacation.com",
+    "facebookw.com",
+    "facebookworld.com",
+    "facebool.com",
+    "facebool.info",
+    "facebooll.com",
+    "faceboom.com",
+    "faceboon.com",
+    "faceboonk.com",
+    "faceboooik.com",
+    "faceboook.com",
+    "faceboop.com",
+    "faceboot.com",
+    "faceboox.com",
+    "facebopk.com",
+    "facebpook.com",
+    "facebuk.com",
+    "facebuok.com",
+    "facebvook.com",
+    "facebyook.com",
+    "facebzook.com",
+    "facecbgook.com",
+    "facecbook.com",
+    "facecbook.org",
+    "facecook.com",
+    "facecook.org",
+    "facedbook.com",
+    "faceebok.com",
+    "faceebook.com",
+    "faceebot.com",
+    "facegbok.com",
+    "facegbook.com",
+    "faceobk.com",
+    "faceobok.com",
+    "faceobook.com",
+    "faceook.com",
+    "facerbooik.com",
+    "facerbook.com",
+    "facesbooc.com",
+    "facesounds.com",
+    "facetook.com",
+    "facevbook.com",
+    "facewbook.co",
+    "facewook.com",
+    "facfacebook.com",
+    "facfebook.com",
+    "fackebook.com",
+    "facnbook.com",
+    "facrbook.com",
+    "facvebook.com",
+    "facwebook.com",
+    "facxebook.com",
+    "fadebook.com",
+    "faebok.com",
+    "faebook.com",
+    "faebookc.com",
+    "faeboook.com",
+    "faecebok.com",
+    "faesebook.com",
+    "fafacebook.com",
+    "faicbooc.com",
+    "fasebokk.com",
+    "fasebook.com",
+    "faseboox.com",
+    "favebook.com",
+    "faycbok.com",
+    "fb.careers",
+    "fb.com",
+    "fb.gg",
+    "fb.me",
+    "fb.watch",
+    "fbacebook.com",
+    "fbbmarket.com",
+    "fbboostyourbusiness.com",
+    "fbcdn.com",
+    "fbcdn.net",
+    "fbfeedback.com",
+    "fbhome.com",
+    "fbidb.io",
+    "fbinc.com",
+    "fbinnovation.com",
+    "fbmarketing.com",
+    "fbreg.com",
+    "fbrpms.com",
+    "fbsbx.com",
+    "fbsbx.net",
+    "fbsupport-covid.net",
+    "fbthirdpartypixel.com",
+    "fbthirdpartypixel.net",
+    "fbthirdpartypixel.org",
+    "fburl.com",
+    "fbwat.ch",
+    "fbworkmail.com",
+    "fcacebook.com",
+    "fcaebook.com",
+    "fcebook.com",
+    "fcebookk.com",
+    "fcfacebook.com",
+    "fdacebook.info",
+    "feacboo.com",
+    "feacbook.com",
+    "feacbooke.com",
+    "feacebook.com",
+    "fecbbok.com",
+    "fecbooc.com",
+    "fecbook.com",
+    "feceboock.com",
+    "feceboox.com",
+    "fececbook.com",
+    "feook.com",
+    "ferabook.com",
+    "fescebook.com",
+    "fesebook.com",
+    "ffacebook.com",
+    "fgacebook.com",
+    "ficeboock.com",
+    "fmcebook.com",
+    "fnacebook.com",
+    "fosebook.com",
+    "fpacebook.com",
+    "fqcebook.com",
+    "fracebook.com",
+    "freeb.com",
+    "freebasics.com",
+    "freebasics.net",
+    "freebs.com",
+    "freefacebook.com",
+    "freefacebook.net",
+    "freefacebookads.net",
+    "freefblikes.com",
+    "freindfeed.com",
+    "friendbook.info",
+    "friendfed.com",
+    "friendfeed-api.com",
+    "friendfeed-media.com",
+    "friendfeed.com",
+    "friendfeedmedia.com",
+    "fsacebok.com",
+    "fscebook.com",
+    "fundraisingwithfacebook.com",
+    "funnyfacebook.org",
+    "futureofbusinesssurvey.org",
+    "gacebook.com",
+    "gameroom.com",
+    "gfacecbook.com",
+    "groups.com",
+    "hackerfacebook.com",
+    "hackfacebook.com",
+    "hackfacebookid.com",
+    "hifacebook.info",
+    "howtohackfacebook-account.com",
+    "hsfacebook.com",
+    "httpfacebook.com",
+    "httpsfacebook.com",
+    "httpwwwfacebook.com",
+    "i.org",
+    "internet.org",
+    "klik.me",
+    "liverail.com",
+    "liverail.tv",
+    "login-account.net",
+    "markzuckerberg.com",
+    "midentsolutions.com",
+    "mobilefacebook.com",
+    "moneywithfacebook.com",
+    "myfbfans.com",
+    "newsfeed.com",
+    "nextstop.com",
+    "online-deals.net",
+    "opencreate.org",
+    "reachtheworldonfacebook.com",
+    "rocksdb.org",
+    "shopfacebook.com",
+    "sportsfacebook.com",
+    "sportstream.com",
+    "supportfacebook.com",
+    "terragraph.com",
+    "thefacebook.com",
+    "thefacebook.net",
+    "thefind.com",
+    "toplayerserver.com",
+    "viewpointsfromfacebook.com",
+    "whyfacebook.com",
+    "worldhack.com",
+    "www-facebook.com",
+    "wwwfacebok.com",
+    "wwwfacebook.com",
+    "wwwmfacebook.com",
+    "zuckerberg.com",
+    "zuckerberg.net",
+    "facebookwork.com",
+    "redkix.com",
+    "workplace.com",
+    "workplaceusecases.com",
+    "fbcdn-a.akamaihd.net",
+];
+const GOOGLE_DOMAINS: [&str; 663] = [
+    "google.ad",
+    "google.ae",
+    "google.al",
+    "google.am",
+    "google.as",
+    "google.at",
+    "google.az",
+    "google.ba",
+    "google.be",
+    "google.bf",
+    "google.bg",
+    "google.bi",
+    "google.bj",
+    "google.bs",
+    "google.bt",
+    "google.by",
+    "google.ca",
+    "google.cat",
+    "google.cd",
+    "google.cf",
+    "google.cg",
+    "google.ch",
+    "google.ci",
+    "google.cl",
+    "google.cm",
+    "google.cn",
+    "google.co",
+    "google.co.ao",
+    "google.co.bw",
+    "google.co.ck",
+    "google.co.cr",
+    "google.co.id",
+    "google.co.il",
+    "google.co.in",
+    "google.co.jp",
+    "google.co.ke",
+    "google.co.kr",
+    "google.co.ls",
+    "google.co.ma",
+    "google.co.mz",
+    "google.co.nz",
+    "google.co.th",
+    "google.co.tz",
+    "google.co.ug",
+    "google.co.uk",
+    "google.co.uz",
+    "google.co.ve",
+    "google.co.vi",
+    "google.co.za",
+    "google.co.zm",
+    "google.co.zw",
+    "google.com",
+    "google.com.af",
+    "google.com.ag",
+    "google.com.ai",
+    "google.com.ar",
+    "google.com.au",
+    "google.com.bd",
+    "google.com.bh",
+    "google.com.bn",
+    "google.com.bo",
+    "google.com.br",
+    "google.com.bz",
+    "google.com.co",
+    "google.com.cu",
+    "google.com.cy",
+    "google.com.do",
+    "google.com.ec",
+    "google.com.eg",
+    "google.com.et",
+    "google.com.fj",
+    "google.com.gh",
+    "google.com.gi",
+    "google.com.gt",
+    "google.com.hk",
+    "google.com.jm",
+    "google.com.kh",
+    "google.com.kw",
+    "google.com.lb",
+    "google.com.ly",
+    "google.com.mm",
+    "google.com.mt",
+    "google.com.mx",
+    "google.com.my",
+    "google.com.na",
+    "google.com.ng",
+    "google.com.ni",
+    "google.com.np",
+    "google.com.om",
+    "google.com.pa",
+    "google.com.pe",
+    "google.com.pg",
+    "google.com.ph",
+    "google.com.pk",
+    "google.com.pr",
+    "google.com.py",
+    "google.com.qa",
+    "google.com.sa",
+    "google.com.sb",
+    "google.com.sg",
+    "google.com.sl",
+    "google.com.sv",
+    "google.com.tj",
+    "google.com.tr",
+    "google.com.tw",
+    "google.com.ua",
+    "google.com.uy",
+    "google.com.vc",
+    "google.com.vn",
+    "google.cv",
+    "google.cz",
+    "google.de",
+    "google.dj",
+    "google.dk",
+    "google.dm",
+    "google.dz",
+    "google.ee",
+    "google.es",
+    "google.fi",
+    "google.fm",
+    "google.fr",
+    "google.ga",
+    "google.ge",
+    "google.gg",
+    "google.gl",
+    "google.gm",
+    "google.gr",
+    "google.gy",
+    "google.hn",
+    "google.hr",
+    "google.ht",
+    "google.hu",
+    "google.ie",
+    "google.im",
+    "google.iq",
+    "google.is",
+    "google.it",
+    "google.je",
+    "google.jo",
+    "google.kg",
+    "google.ki",
+    "google.kz",
+    "google.la",
+    "google.li",
+    "google.lk",
+    "google.lt",
+    "google.lu",
+    "google.lv",
+    "google.md",
+    "google.me",
+    "google.mg",
+    "google.mk",
+    "google.ml",
+    "google.mn",
+    "google.ms",
+    "google.mu",
+    "google.mv",
+    "google.mw",
+    "google.ne",
+    "google.nl",
+    "google.no",
+    "google.nr",
+    "google.nu",
+    "google.pl",
+    "google.pn",
+    "google.ps",
+    "google.pt",
+    "google.ro",
+    "google.rs",
+    "google.ru",
+    "google.rw",
+    "google.sc",
+    "google.se",
+    "google.sh",
+    "google.si",
+    "google.sk",
+    "google.sm",
+    "google.sn",
+    "google.so",
+    "google.sr",
+    "google.st",
+    "google.td",
+    "google.tg",
+    "google.tl",
+    "google.tm",
+    "google.tn",
+    "google.to",
+    "google.tt",
+    "google.vg",
+    "google.vu",
+    "google.ws",
+    "0emm.com",
+    "1e100.net",
+    "1ucrs.com",
+    "466453.com",
+    "abc.xyz",
+    "adgoogle.net",
+    "admeld.com",
+    "angulardart.org",
+    "api.ai",
+    "apigee.com",
+    "appbridge.ca",
+    "appbridge.io",
+    "appbridge.it",
+    "appspot.com",
+    "apture.com",
+    "area120.com",
+    "asp-cc.com",
+    "autodraw.com",
+    "bandpage.com",
+    "baselinestudy.com",
+    "baselinestudy.org",
+    "bazel.build",
+    "bdn.dev",
+    "beatthatquote.com",
+    "blink.org",
+    "brocaproject.com",
+    "brotli.org",
+    "bumpshare.com",
+    "bumptop.ca",
+    "bumptop.com",
+    "bumptop.net",
+    "bumptop.org",
+    "bumptunes.com",
+    "campuslondon.com",
+    "certificate-transparency.org",
+    "chrome.com",
+    "chromebook.com",
+    "chromecast.com",
+    "chromeos.dev",
+    "chromium.org",
+    "chronicle.security",
+    "chroniclesec.com",
+    "cloudburstresearch.com",
+    "cloudfunctions.net",
+    "cloudproxy.app",
+    "cloudrobotics.com",
+    "cobrasearch.com",
+    "codespot.com",
+    "conscrypt.com",
+    "conscrypt.org",
+    "cookiechoices.org",
+    "coova.com",
+    "coova.net",
+    "coova.org",
+    "crossmediapanel.com",
+    "cs4hs.com",
+    "dartsearch.net",
+    "dataliberation.org",
+    "debug.com",
+    "debugproject.com",
+    "devsitetest.how",
+    "dialogflow.com",
+    "digitalassetlinks.org",
+    "docs.new",
+    "episodic.com",
+    "feedburner.com",
+    "fflick.com",
+    "financeleadsonline.com",
+    "fitbit.com",
+    "foofle.com",
+    "froogle.com",
+    "fuchsia.dev",
+    "g-tun.com",
+    "g.cn",
+    "g.co",
+    "g.dev",
+    "g.page",
+    "gateway.dev",
+    "gcr.io",
+    "gerritcodereview.com",
+    "getbumptop.com",
+    "ggoogle.com",
+    "gipscorp.com",
+    "gkecnapps.cn",
+    "globaledu.org",
+    "gmail.com",
+    "gmodules.com",
+    "gogle.com",
+    "gogole.com",
+    "gonglchuangl.net",
+    "goo.gl",
+    "googel.com",
+    "googil.com",
+    "googl.com",
+    "google-access.net",
+    "google-syndication.com",
+    "google.berlin",
+    "google.dev",
+    "google.net",
+    "google.org",
+    "google.ventures",
+    "googleacquisitionmigration.com",
+    "googleapis.cn",
+    "googleapis.com",
+    "googleapps.com",
+    "googlearth.com",
+    "googleblog.com",
+    "googlebot.com",
+    "googlecapital.com",
+    "googlecert.net",
+    "googlecnapps.cn",
+    "googlecode.com",
+    "googlecommerce.com",
+    "googlecompare.co.uk",
+    "googledanmark.com",
+    "googledomains.com",
+    "googledrive.com",
+    "googlee.com",
+    "googleearth.com",
+    "googlefiber.com",
+    "googlefiber.net",
+    "googlefinland.com",
+    "googlemail.com",
+    "googlemaps.com",
+    "googlepagecreator.com",
+    "googlephotos.com",
+    "googleplus.com",
+    "googlesource.com",
+    "googlestore.com",
+    "googlesverige.com",
+    "googleusercontent.com",
+    "googleventures.com",
+    "googlezip.net",
+    "googlr.com",
+    "goolge.com",
+    "gooogle.com",
+    "gridaware.app",
+    "gsrc.io",
+    "gstatic.cn",
+    "gstatic.com",
+    "gstaticcnapps.cn",
+    "gsuite.com",
+    "gv.com",
+    "gvt0.com",
+    "gvt1.com",
+    "gvt2.com",
+    "gvt3.com",
+    "gvt5.com",
+    "gvt6.com",
+    "gvt7.com",
+    "gvt9.com",
+    "haplorrhini.com",
+    "hdrplusdata.org",
+    "hindiweb.com",
+    "howtogetmo.co.uk",
+    "html5rocks.com",
+    "hwgo.com",
+    "iamremarkable.org",
+    "idx.dev",
+    "igoogle.com",
+    "impermium.com",
+    "itasoftware.com",
+    "j2objc.org",
+    "jibemobile.com",
+    "keyhole.com",
+    "keytransparency.com",
+    "keytransparency.foo",
+    "keytransparency.org",
+    "lanternal.com",
+    "like.com",
+    "madewithcode.com",
+    "material.io",
+    "mdialog.com",
+    "meet.new",
+    "mfg-inspector.com",
+    "mobileview.page",
+    "moodstocks.com",
+    "near.by",
+    "nest.com",
+    "nomulus.foo",
+    "oauthz.com",
+    "on.here",
+    "on2.com",
+    "onefifteen.net",
+    "onefifteen.org",
+    "oneworldmanystories.com",
+    "openthread.io",
+    "openweave.io",
+    "orbitera.com",
+    "page.link",
+    "pagespeedmobilizer.com",
+    "pageview.mobi",
+    "panoramio.com",
+    "partylikeits1986.org",
+    "paxlicense.org",
+    "picasa.com",
+    "picasaweb.com",
+    "picasaweb.net",
+    "picasaweb.org",
+    "picnik.com",
+    "pittpatt.com",
+    "pixate.com",
+    "postini.com",
+    "privacysandbox.com",
+    "projectara.com",
+    "projectbaseline.com",
+    "publishproxy.com",
+    "questvisual.com",
+    "quickoffice.com",
+    "quiksee.com",
+    "revolv.com",
+    "ridepenguin.com",
+    "run.app",
+    "savethedate.foo",
+    "saynow.com",
+    "schemer.com",
+    "screenwisetrends.com",
+    "screenwisetrendspanel.com",
+    "sheets.new",
+    "slides.new",
+    "snapseed.com",
+    "solveforx.com",
+    "stadia.dev",
+    "stcroixmosquito.com",
+    "stcroixmosquitoproject.com",
+    "studywatchbyverily.com",
+    "studywatchbyverily.org",
+    "stxmosquito.com",
+    "stxmosquitoproject.com",
+    "stxmosquitoproject.net",
+    "stxmosquitoproject.org",
+    "synergyse.com",
+    "tensorflow.org",
+    "tfhub.dev",
+    "thecleversense.com",
+    "thegooglestore.com",
+    "thinkquarterly.co.uk",
+    "thinkquarterly.com",
+    "thinkwithgoogle.com",
+    "tiltbrush.com",
+    "txcloud.net",
+    "txvia.com",
+    "unfiltered.news",
+    "useplannr.com",
+    "usvimosquito.com",
+    "usvimosquitoproject.com",
+    "velostrata.com",
+    "verily.com",
+    "verilylifesciences.com",
+    "verilystudyhub.com",
+    "verilystudywatch.com",
+    "verilystudywatch.org",
+    "wallet.com",
+    "waymo.com",
+    "waze.com",
+    "web.app",
+    "web.dev",
+    "webappfieldguide.com",
+    "webmproject.org",
+    "webpkgcache.com",
+    "webrtc.org",
+    "weltweitwachsen.de",
+    "whatbrowser.org",
+    "whats.new",
+    "widevine.com",
+    "withgoogle.com",
+    "womenwill.com",
+    "womenwill.com.br",
+    "womenwill.id",
+    "womenwill.in",
+    "womenwill.mx",
+    "x.company",
+    "x.team",
+    "xn--9kr7l.com",
+    "xn--9trs65b.com",
+    "xn--flw351e.com",
+    "xn--ggle-55da.com",
+    "xn--gogl-0nd52e.com",
+    "xn--gogl-1nd42e.com",
+    "xplr.co",
+    "zukunftswerkstatt.de",
+    "google-ohttp-relay-safebrowsing.fastly-edge.com",
+    "www.recaptcha.net",
+    "265.com",
+    "2mdn-cn.net",
+    "2mdn.net",
+    "admob-cn.com",
+    "adservice.google.com",
+    "ai.ytimg.com",
+    "app-measurement-cn.com",
+    "app-measurement.com",
+    "apps5.oingo.com",
+    "avail.googleflights.net",
+    "beacons.gcp.gvt2.com",
+    "beacons.gvt2.com",
+    "beacons2.gvt2.com",
+    "beacons3.gvt2.com",
+    "borgmon.adz.google.com",
+    "c.admob.com",
+    "c.android.clients.google.com",
+    "cache-management-prod.google.com",
+    "cache.pack.google.com",
+    "checkin.gstatic.com",
+    "clickserve.cc-dt.com",
+    "clickserve.dartsearch.net",
+    "clickserver.googleads.com",
+    "clientservices.googleapis.com",
+    "cn.widevine.com",
+    "cnappinstall.googleadapis.com",
+    "connectivitycheck.gstatic.com",
+    "content.googleadapis.com",
+    "crashlyticsreports-pa.googleapis.com",
+    "crl.pki.goog",
+    "csi.gstatic.com",
+    "dartsearch-cn.net",
+    "dg-meta.video.google.com",
+    "distribution.qatp1.net",
+    "distribution.qcpp1.net",
+    "distribution.qpdp1.net",
+    "dl.google.com",
+    "dl.l.google.com",
+    "doubleclick-cn.net",
+    "doubleclick.net",
+    "download.mlcc.google.com",
+    "download.qatp1.net",
+    "download.qcpp1.net",
+    "download.qpdp1.net",
+    "download.tensorflow.google.com",
+    "emmapplecodevice.googleapis.com",
+    "firebase-settings.crashlytics.com",
+    "fontfiles.googleadapis.com",
+    "fontfiles.googleapis.com",
+    "fonts.googleadapis.com",
+    "fonts.googleapis.com",
+    "fonts.gstatic.com",
+    "g0.gstatic.com",
+    "g1.gstatic.com",
+    "g2.gstatic.com",
+    "g3.gstatic.com",
+    "gonglchuangl.net",
+    "gongyichuangyi.net",
+    "google-analytics-cn.com",
+    "google-analytics.com",
+    "googleadservices-cn.com",
+    "googleadservices.com",
+    "googleanalytics.com",
+    "googleapis-cn.com",
+    "googleapps-cn.com",
+    "googleflights-cn.net",
+    "googleoptimize-cn.com",
+    "googleoptimize.com",
+    "googleplex.com",
+    "googlesyndication-cn.com",
+    "googlesyndication.com",
+    "googletagmanager-cn.com",
+    "googletagmanager.com",
+    "googletagservices-cn.com",
+    "googletagservices.com",
+    "googletraveladservices-cn.com",
+    "googletraveladservices.com",
+    "googlevads-cn.com",
+    "goto.google.com",
+    "gstatic-cn.com",
+    "gstaticadssl.l.google.com",
+    "gtm.oasisfeng.com",
+    "imasdk.googleapis.com",
+    "monitoring.qatp1.net",
+    "monitoring.qcpp1.net",
+    "monitoring.qpdp1.net",
+    "ocsp.pki.goog",
+    "pagead-googlehosted.l.google.com",
+    "performanceparameters.googleapis.com",
+    "pki-goog.l.google.com",
+    "play.1ucrs.com",
+    "prod-controlbe.floonet.goog",
+    "prod-databe.floonet.goog",
+    "prod.databe.floonet.goog",
+    "qagpublic.qatp1.net",
+    "qagpublic.qcpp1.net",
+    "qagpublic.qpdp1.net",
+    "qgadmin.qatp1.net",
+    "qgadmin.qcpp1.net",
+    "qgadmin.qpdp1.net",
+    "qpx.googleflights.net",
+    "qualysapi.qatp1.net",
+    "qualysapi.qcpp1.net",
+    "qualysapi.qpdp1.net",
+    "qualysguard.qatp1.net",
+    "qualysguard.qcpp1.net",
+    "qualysguard.qpdp1.net",
+    "recaptcha.net",
+    "recaptcha-cn.net",
+    "redirector.bdn.dev",
+    "redirector.c.chat.google.com",
+    "redirector.c.mail.google.com",
+    "redirector.c.pack.google.com",
+    "redirector.c.youtubeeducation.com",
+    "redirector.gcpcdn.gvt1.com",
+    "redirector.gvt1.com",
+    "redirector.offline-maps.gvt1.com",
+    "redirector.snap.gvt1.com",
+    "redirector.xn--ngstr-lra8j.com",
+    "regioninfo-pa.googleapis.com",
+    "safebrowsing.googleapis.com",
+    "scanservice1.qatp1.net",
+    "scanservice1.qcpp1.net",
+    "scanservice1.qpdp1.net",
+    "service.urchin.com",
+    "settings.xn--9trs65b.com",
+    "ssl-google-analytics.l.google.com",
+    "ssl.gstatic.com",
+    "staging-controlbe.floonet.goog",
+    "staging-databe.floonet.goog",
+    "staging-regioninfo-pa.googleapis.com",
+    "staging.databe.floonet.goog",
+    "support.1ucrs.com",
+    "tac.googleapis.com",
+    "test.bugs-qa.chromium.org",
+    "test.gbugs-qa.chromium.org",
+    "tools.google.com",
+    "tools.l.google.com",
+    "update.crashlytics.com",
+    "update.googleapis.com",
+    "wear.googleapis.com",
+    "www-google-analytics.l.google.com",
+    "www-googletagmanager.l.google.com",
+    "www.destinationurl.com",
+    "www.googleadapis.com",
+    "www.gstatic.com",
+    "www.pxcc.com",
+    "xn--9kr7l.com",
+    "xn--flw351e.com",
+    "applemdm.corp.google.com",
+    "dns.corp.google.com",
+    "g3doc.corp.google.com",
+    "gmskiosk-ssl.corp.google.com",
+    "go.corp.google.com",
+    "gorom.corp.google.com",
+    "goto.corp.google.com",
+    "l2-uberproxy.corp.google.com",
+    "logger.corp.google.com",
+    "logger-dev.corp.google.com",
+    "login.corp.google.com",
+    "proxyconfig.corp.google.com",
+    "rapture-autopush.corp.google.com",
+    "rapture.corp.google.com",
+    "rapture-prod.corp.google.com",
+    "rapture-test.corp.google.com",
+    "r.cert.corp.google.com",
+    "ssh-relay.corp.google.com",
+    "sslredirect.corp.google.com",
+    "streaming-uberproxy.corp.google.com",
+    "streaming-uberproxy-rotation.corp.google.com",
+    "sup.corp.google.com",
+    "supportcenter.corp.google.com",
+    "sup-ssh-relay2.corp.google.com",
+    "sup-ssh-relay.corp.google.com",
+    "techstop.corp.google.com",
+    "uberproxy4.corp.google.com",
+    "uberproxy6.corp.google.com",
+    "uberproxy.corp.google.com",
+    "uberproxy-debug4.corp.google.com",
+    "uberproxy-debug.corp.google.com",
+    "uberproxy-pen-redirect.corp.google.com",
+    "vext.corp.google.com",
+    "sup.l.google.com",
+    "uberproxy-with-cn.l.google.com",
+    "uberproxy-with-cn4.l.google.com",
+    "uberproxy-with-cn6.l.google.com",
+    "qiao-cn.com",
+    "gvt1-cn.com",
+    "gvt2-cn.com",
+];
+const AMAZON_DOMAINS: [&str; 94] = [
+    "a2z.com",
+    "aboutamazon.cn",
+    "aboutamazon.co.uk",
+    "aboutamazon.com",
+    "aboutamazon.com.au",
+    "aboutamazon.de",
+    "aboutamazon.es",
+    "aboutamazon.eu",
+    "aboutamazon.fr",
+    "aboutamazon.in",
+    "aboutamazon.it",
+    "aboutamazon.jp",
+    "aboutamazon.pl",
+    "alexafund.cn",
+    "alexafund.com.cn",
+    "amaaozn.com",
+    "amazon-fashions.com",
+    "amazon-jp-recruiting.com",
+    "amazon-lantern.com",
+    "amazon-launchpad.com",
+    "amazon.ae",
+    "amazon.ca",
+    "amazon.cn",
+    "amazon.co.jp",
+    "amazon.co.uk",
+    "amazon.com",
+    "amazon.com.au",
+    "amazon.com.br",
+    "amazon.com.mx",
+    "amazon.com.tr",
+    "amazon.de",
+    "amazon.dev",
+    "amazon.es",
+    "amazon.fr",
+    "amazon.in",
+    "amazon.it",
+    "amazon.jobs",
+    "amazon.jp",
+    "amazon.nl",
+    "amazon.red",
+    "amazon.sg",
+    "amazonalexavoxcon.com",
+    "amazonauthorinsights.com",
+    "amazonbusiness.cn",
+    "amazonbusiness.com.cn",
+    "amazonbusiness.org",
+    "amazonbusinessblog.com",
+    "amazonchoice.cn",
+    "amazonchoice.com.cn",
+    "amazonchoices.cn",
+    "amazonchoices.com.cn",
+    "amazondevicesupport.com",
+    "amazonfctours.com",
+    "amazonianblog.com",
+    "amazonimages.com",
+    "amazoninspire.cn",
+    "amazoninspire.com.cn",
+    "amazonlaunchpad.cn",
+    "amazonlaunchpad.com",
+    "amazonlaunchpad.com.cn",
+    "amazonlending.com.cn",
+    "amazonliterarypartnership.com",
+    "amazonlumberyard.wang",
+    "amazonnow.cn",
+    "amazonnow.com.cn",
+    "amazonpay.com",
+    "amazonpay.in",
+    "amazonsdi.com",
+    "amazonstudiosguilds.com",
+    "amazonvideodirect.com",
+    "amzn.asia",
+    "amzn.com",
+    "amzn.to",
+    "amznl.com",
+    "assoc-amazon.cn",
+    "associates-amazon.com",
+    "gameon-masters.com",
+    "gdansk-amazon.com",
+    "images-amazon.com",
+    "media-amazon.com",
+    "primeday.cn",
+    "primeday.com.cn",
+    "primeday.info",
+    "siege-amazon.com",
+    "ssl-images-amazon.com",
+    "ueberamazon.de",
+    "yamaxun.cn",
+    "yamaxun.com",
+    "z.cn",
+    "alexa.com",
+    "audible.com",
+    "createspace.com",
+    "full:images-cn.ssl-images-amazon.com",
+    "full:images-cn-8.ssl-images-amazon.com",
+];
