@@ -45,6 +45,41 @@ const LEAK_ITEMS: [(&str, &str); 29] = [
     ("email", "Device Email"),
 ];
 
+const IN_SCOPTE_LEAKS: [&str; 32] = [
+    "device_id",
+    "adid",
+    "bootloader",
+    "finger_print",
+    "cpu",
+    "displayid",
+    "device_name",
+    "resolution",
+    "abi",
+    "model",
+    "timezone",
+    "operator",
+    "wifi_ip",
+    "wifi_ipv6",
+    "gateway",
+    "proxy_addr",
+    "my_wifi_essid",
+    "my_wifi_bssid",
+    "other_wifi_essid",
+    "other_wifi_bssid",
+    "device_apps",
+    "phone_number",
+    "call_history_number",
+    "contact_name",
+    "contact_phone",
+    "email",
+    "latitude4",
+    "langitude4",
+    "latitude3",
+    "langitude3",
+    "latitude2",
+    "langitude2",
+];
+
 const DEVICE_INFO: [&str; 13] = [
     "imei",
     "serial",
@@ -145,12 +180,15 @@ const IMPLICIT: [&str; 38] = [
     "android.provider.Telephony.WAP_PUSH_RECEIVED",
 ];
 
-fn get_leak_category(leak: &Leak) -> &'static str {
+fn get_leak_category(leak: &Leak,send_only:bool) -> Option<&'static str> {
+    if send_only && !leak.is_send {
+        return None;
+    }
     let value = leak.leak.as_str();
     if DEVICE_INFO.contains(&value) {
-        "Device"
+        Some("Device")
     } else if NETWORK_INFO.contains(&value) {
-        "Network"
+        Some("Network")
     } else if NETWORK_LOCATION_INFO.contains(&value)
         || [
             "latitude4",
@@ -162,11 +200,11 @@ fn get_leak_category(leak: &Leak) -> &'static str {
         ]
         .contains(&value)
     {
-        "Location"
+        Some("Location")
     } else if USER_ASSETS.contains(&value) {
-        "User Assets"
+        Some("User Assets")
     } else {
-        "Other"
+        None
     }
 }
 
@@ -513,10 +551,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 }
 
                                 for l in &connection.leaks {
-                                    let leak_type = get_leak_category(&l);
-                                    if leak_type == "Other" {
+                                    let Some(leak_type) = get_leak_category(&l,true)else{
                                         continue;
-                                    }
+                                    };
+                                    
                                     if *foreground {
                                         service_foreground_leak
                                             .entry(leak_type.to_string())
@@ -641,10 +679,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .collect::<Vec<_>>()
                             {
                                 for l in &connection.leaks {
-                                    let leak_type = get_leak_category(&l);
-                                    if leak_type == "Other" {
+                                    let Some(leak_type) = get_leak_category(&l,true)else{
                                         continue;
-                                    }
+                                    };
                                     if NEW_IMPLICIT.contains(&intent.action.as_str()) {
                                         broadcast_undocumented_implicit_leak
                                             .entry(leak_type.to_string())
@@ -966,10 +1003,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                             r[time_type].insert(app_name.clone());
                                             r[8].insert(app_name.clone());
                                             for l in &connection.leaks {
-                                                let leak_type = get_leak_category(&l);
-                                                if leak_type == "Other" {
+                                                let Some(leak_type) = get_leak_category(&l,true)else{
                                                     continue;
-                                                }
+                                                };
 
                                                 for j in &job_type {
                                                     // if *j == "Overall" {
@@ -1873,7 +1909,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .count()
     );
     println!("----------New Table----------");
-
+    
     let mut leaks_visible_categories: HashMap<String, HashSet<String>> = HashMap::new();
     let mut leaks_invisible_categories: HashMap<String, HashSet<String>> = HashMap::new();
     let mut leaks_works_categories: HashMap<String, HashSet<String>> = HashMap::new();
