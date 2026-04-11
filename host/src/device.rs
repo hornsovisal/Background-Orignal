@@ -426,6 +426,8 @@ impl Device {
             self.serial.clone(),
             "install-multiple".to_string(),
             "-g".to_string(),
+            "-i",
+            "com.android.vending",
             format!("{}/base.apk", apk_folder),
         ];
 
